@@ -20,8 +20,6 @@ C:\Users\shpat\Desktop\projects\.dotfiles\
 │       └── <skill-name>\
 │           ├── SKILL.md
 │           └── references\
-├── .agents\
-│   └── skills\          <- Agent skills (separate, do not mix)
 ├── skills-lock.json     <- Only for GitHub-sourced skills (has computedHash)
 └── README.md
 ```
