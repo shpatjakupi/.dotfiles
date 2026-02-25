@@ -355,3 +355,7 @@ After testing the skill, users may request improvements. Often this happens righ
 2. Notice struggles or inefficiencies
 3. Identify how SKILL.md or bundled resources should be updated
 4. Implement changes and test again
+
+### Step 7: Push to Dotfiles
+
+After the skill is complete (or after any iteration), always remind the user to run `/push-skills` to sync the new or updated skill to their dotfiles repository.

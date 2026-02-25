@@ -94,6 +94,10 @@ npx skills add <owner/repo@skill> -g -y
 
 The `-g` flag installs globally (user-level) and `-y` skips confirmation prompts.
 
+### Step 5: Remind to Push to Dotfiles
+
+After installing, always remind the user to run `/push-skills` to sync the new skill to their dotfiles repository.
+
 ## Common Skill Categories
 
 When searching, consider these common categories:
