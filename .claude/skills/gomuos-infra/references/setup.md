@@ -45,9 +45,10 @@ infra-gitops/
 │       │   └── secret.yaml     # all env vars + SPRING_PROFILES_ACTIVE=prod,ordrupspizza
 │       ├── frontend/
 │       │   ├── deployment.yaml
-│       │   └── service.yaml
+│       │   ├── service.yaml
+│       │   └── secret.yaml     # TOKEN_ENCRYPTION_KEY for frontend
 │       └── ingress/
-│           └── ingress.yaml    # TLS via cert-manager, routes to frontend
+│           └── ingress.yaml    # TLS via cert-manager, routes / to frontend and /ws to backend
 └── argocd/
     ├── base.yaml               # gomuos-base ArgoCD app
     └── ordrupspizza.yaml       # ordrupspizza ArgoCD app
@@ -72,16 +73,14 @@ infra-gitops/
 - **cert-manager** v1.14.4 installed
 - **ClusterIssuer**: `letsencrypt-prod` (HTTP-01 challenge via Traefik)
 - **Certificate**: `ordrupspizza-tls` in `gomuos` namespace
-- **Status**: Pending - waiting for DNS to point to server
+- **Status**: Active and working (DNS switched 2026-03-12)
 
-## DNS (Pending Switch)
+## DNS (Completed 2026-03-12)
 - **Domain**: ordrupspizza.dk
 - **Registrar/DNS**: Simply.com
-- **Current A record**: 76.76.21.21 (Vercel - still live)
-- **Target A record**: 46.224.215.213 (Hetzner)
+- **A record**: 46.224.215.213 (Hetzner) — switched from Vercel 2026-03-12
 - **www**: CNAME → ordrupspizza.dk
-- **Action needed**: Change A @ and CNAME www at Simply.com when restaurant closes
-- **Email records**: Keep all MX, DKIM, DMARC, SPF untouched (Simply.com email)
+- **Email records**: MX, DKIM, DMARC, SPF untouched (Simply.com email)
 
 ## Firewall
 - **Host firewall**: UFW (open: 22, 80, 443 for all)
@@ -95,6 +94,46 @@ infra-gitops/
 - **Properties file**: `application-ordrupspizza.properties` (bundled in jar)
 - **Email**: Simply.com SMTP (`smtp.simply.com:587`, `ordrupspizza@gomuos.com`)
 - **Secret name**: `ordrupspizza-backend-secret`
+- **Customer service account**: In-memory Spring Security user (NOT in database), created at boot from `CUSTOMER_USERNAME` / `CUSTOMER_PASSWORD` env vars with role `CUSTOMER`
+- **`APP_DOMAIN` env var**: Must be `ordrupspizza` (without `.dk`). CorsFilter and WebSocketConfig append `.dk` themselves. Setting it to `ordrupspizza.dk` causes double `.dk` in allowed origins.
+
+## Ingress Routing
+- `/ws` → backend (port 8080) — WebSocket/SockJS endpoint
+- `/` → frontend (port 3000) — everything else
+- Both `ordrupspizza.dk` and `www.ordrupspizza.dk` have the same rules
+
+## Frontend Environment Variables
+- **`NEXT_PUBLIC_*` vars are baked at build time** (Next.js inlines them). They must be passed as Docker build args in `.github/workflows/build.yml`, NOT just as runtime env vars in the K8s deployment.
+- **`NEXT_PUBLIC_DOMAIN`**: Set to `ordrupspizza.dk` (with `.dk`) in the build workflow. The `next.config.mjs` uses this directly (does NOT append `.dk`).
+- **`NEXT_PUBLIC_BACKEND_API`**: Set to `http://ordrupspizza-backend:8080` in K8s deployment. Used by server-side API routes to proxy to backend. Works at runtime since API routes run server-side.
+- **Frontend secret**: `ordrupspizza-frontend-secret` in `restaurants/ordrupspizza/frontend/secret.yaml` — holds `TOKEN_ENCRYPTION_KEY`
+
+## Payment Flow (Bambora)
+- Backend creates payment session with `BAMBORA_CALLBACK_URL` (from secret)
+- Customer completes payment on Bambora hosted page
+- Bambora calls `https://www.ordrupspizza.dk/payment/callback` with transaction params
+- Frontend Pages Router handler (`pages/payment/callback.tsx`) receives it server-side
+- Frontend proxies to backend at `${NEXT_PUBLIC_BACKEND_API}/bambora/callback`
+- Backend (`BamboraRestController.handlePaymentCallback`) marks order as `isPaymentSuccessful = true`
+- **Critical**: If the callback URL path is wrong, orders are created but never marked as paid, so they won't show in the admin dashboard
+
+## WebSocket (Admin Dashboard)
+- SockJS/STOMP protocol over `/ws` endpoint
+- Ingress routes `/ws` to backend directly
+- SockJS tries native WebSocket first (`wss://`), falls back to XHR streaming
+- CSP `connect-src` must include `wss://${domain}` for native WebSocket transport
+- Backend `WebSocketConfig` allowed origins use `app.domain` + `.dk` suffix
+
+## Security (StrictHttpFirewall)
+- `Config.java` in backend controls allowed headers via deny-list + allow-list
+- Firefox sends `DNT` and `TE` headers — these must be in the allowed list or Firefox gets 400 errors
+- K8s internal IPs (`10.*`, `172.*`, `192.168.*`, `127.0.0.1`) are whitelisted in `CorsFilter` to skip IP blocking and suspicious request checks
+
+## MySQL Timezone
+- MySQL on Hetzner runs in **UTC** (SYSTEM timezone)
+- Backend stores `Ordered_date` in **Danish time** (Europe/Copenhagen)
+- The `getOrdersFromToday()` query uses `LocalDate.now(ZoneId.of("Europe/Copenhagen"))` — this is correct
+- The `order` table is a reserved word in SQL — requires backticks when querying directly
 
 ## Multi-tenant Architecture
 - Shared MySQL (one DB per restaurant)
@@ -103,9 +142,9 @@ infra-gitops/
 
 ---
 
-## AWS (Old Infrastructure - Still Running)
+## AWS (Old Infrastructure - Pending Decommission)
 
-**Still live on AWS (don't delete until migration confirmed stable):**
+**DNS switched to Hetzner on 2026-03-12. AWS still running for safety — decommission after confirmed stable:**
 
 | Service | Details | Monthly Cost |
 |---------|---------|-------------|
