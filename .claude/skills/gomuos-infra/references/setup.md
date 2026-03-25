@@ -29,6 +29,7 @@ infra-gitops/
 ├── base/
 │   ├── namespace.yaml          # gomuos namespace
 │   ├── ghcr-secret.yaml        # GitHub Container Registry auth
+│   ├── images-pvc.yaml         # 5Gi PVC for image storage (shared)
 │   ├── mysql/
 │   │   ├── statefulset.yaml
 │   │   ├── service.yaml        # headless ClusterIP
@@ -40,7 +41,7 @@ infra-gitops/
 ├── restaurants/
 │   └── ordrupspizza/
 │       ├── backend/
-│       │   ├── deployment.yaml
+│       │   ├── deployment.yaml # mounts images-pvc at /data/images
 │       │   ├── service.yaml
 │       │   └── secret.yaml     # all env vars + SPRING_PROFILES_ACTIVE=prod,ordrupspizza
 │       ├── frontend/
@@ -48,7 +49,7 @@ infra-gitops/
 │       │   ├── service.yaml
 │       │   └── secret.yaml     # TOKEN_ENCRYPTION_KEY for frontend
 │       └── ingress/
-│           └── ingress.yaml    # TLS via cert-manager, routes / to frontend and /ws to backend
+│           └── ingress.yaml    # TLS via cert-manager, routes / to frontend, /ws and /images to backend
 └── argocd/
     ├── base.yaml               # gomuos-base ArgoCD app
     └── ordrupspizza.yaml       # ordrupspizza ArgoCD app
@@ -99,6 +100,7 @@ infra-gitops/
 
 ## Ingress Routing
 - `/ws` → backend (port 8080) — WebSocket/SockJS endpoint
+- `/images` → backend (port 8080) — serves food images from local storage
 - `/` → frontend (port 3000) — everything else
 - Both `ordrupspizza.dk` and `www.ordrupspizza.dk` have the same rules
 
@@ -142,34 +144,8 @@ infra-gitops/
 
 ---
 
-## AWS (Old Infrastructure - Pending Decommission)
-
-**DNS switched to Hetzner on 2026-03-12. AWS still running for safety — decommission after confirmed stable:**
-
-| Service | Details | Monthly Cost |
-|---------|---------|-------------|
-| RDS MySQL | `database-orderapp.cy9tfut8dd6j.eu-north-1.rds.amazonaws.com:3306` | ~$14 |
-| ECS Fargate | Backend + Frontend containers | ~$10 |
-| Load Balancer | ALB | ~$18 |
-| NAT Gateway | VPC networking | ~$15 |
-| Other | Route53, ECR, etc. | ~$16 |
-| **Total** | | **~$73/month** |
-
-**AWS RDS credentials:**
-- Host: `database-orderapp.cy9tfut8dd6j.eu-north-1.rds.amazonaws.com`
-- Port: `3306`
-- User: `admin`
-- Password: same as Hetzner MySQL (stored in infra-gitops secrets)
-- Databases: `ordrupspizza`, `testapp`
-
-**AWS S3 (still in use for image storage):**
-- Bucket: `ordrupspizza-images`
-- Region: `eu-north-1`
-- Access Key: stored in `restaurants/ordrupspizza/backend/secret.yaml` in infra-gitops
-
-**Decommission plan (after 1 week stable on Hetzner):**
-1. Delete ECS services
-2. Delete RDS instance (after final DB backup)
-3. Delete Load Balancer
-4. Delete NAT Gateway / VPC
-5. Keep S3 bucket (still used for images)
+## Image Storage
+- **PVC**: `images-pvc` (5Gi, `local-path` storageClass) in `base/images-pvc.yaml`
+- **Mount**: `/data/images` in backend pod
+- **Ingress**: `/images` routes to backend (serves images directly)
+- **No external dependencies** — all images stored locally on Hetzner

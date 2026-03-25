@@ -67,20 +67,6 @@ SELECT id, username, email FROM admin;
 SELECT @@global.time_zone, @@session.time_zone, NOW(), UTC_TIMESTAMP();
 ```
 
-## MySQL - Refresh DB from AWS
-```bash
-# 1. Export from AWS RDS (run on server)
-mysqldump -h database-orderapp.cy9tfut8dd6j.eu-north-1.rds.amazonaws.com \
-  -u admin -p'<mysql-root-password>' --set-gtid-purged=OFF <dbname> 2>/dev/null > /root/<dbname>_fresh.sql
-
-# 2. Drop and recreate
-kubectl exec mysql-0 -n gomuos -- mysql -u root -p'<mysql-root-password>' \
-  -e "DROP DATABASE <dbname>; CREATE DATABASE <dbname>; GRANT ALL PRIVILEGES ON <dbname>.* TO 'admin'@'%'; FLUSH PRIVILEGES;" 2>/dev/null
-
-# 3. Import
-kubectl exec -i mysql-0 -n gomuos -- mysql -u root -p'<mysql-root-password>' <dbname> 2>/dev/null < /root/<dbname>_fresh.sql
-```
-
 ## Apply Manifests Manually (bypass ArgoCD wait)
 ```bash
 # Copy file to server and apply
