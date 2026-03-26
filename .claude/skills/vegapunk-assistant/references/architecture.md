@@ -49,10 +49,19 @@ events are also captured and shown.
 - **Stale session fallback**: If `--resume` fails, automatically retries with a fresh
   session instead of returning an error
 
-### Stream-JSON parsing
-Claude Code outputs stream-json format. We only extract the final `result` event
-to avoid duplicate text (earlier version captured both deltas and result, causing
-doubled responses). Also parses `rate_limit_event` for rate limit status/reset time.
+### Streaming responses
+Claude Code subprocess stdout is read line-by-line. `assistant` events with text deltas
+are streamed to Telegram via live message editing:
+1. Placeholder `...` sent immediately (`sendMessageGetId`)
+2. `onChunk` callback fires on each text delta, throttled to 1.5s edits
+3. Final `result` event provides authoritative text + usage
+4. Long responses (>4096 chars): first chunk in edited placeholder, rest as new messages
+
+### Context injection
+Both `CLAUDE.md` and `personality.md` are injected directly into the prompt on the first
+message of each new session. This ensures Vegapunk always knows who it is regardless of
+which project's `cwd` is active. Previously relied on CLAUDE.md being in cwd, which
+failed because WORKSPACE_PATH and project paths didn't contain the file.
 
 ### Project switching
 `/project <name>` changes the `cwd` passed to Claude Code subprocess. Each project

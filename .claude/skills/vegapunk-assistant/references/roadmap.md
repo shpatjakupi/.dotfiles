@@ -21,9 +21,10 @@ Features planned or considered for Vegapunk, roughly ordered by priority.
 - [x] Subprocess robustness (30 min timeout, env cleanup, stale session fallback)
 
 ## Phase 2: Core Features
+- [x] **Streaming responses** — live message editing as Claude types (1.5s throttle)
+- [x] **Context injection** — CLAUDE.md + personality.md injected into prompt (not relying on cwd)
 - [ ] **BullMQ job queues** — proper async job handling with retry and dead-letter
 - [ ] **Reminder system** — `/remind <duration> <message>` and `/remind every <interval> <message>`
-- [ ] **Streaming responses** — live message editing as Claude types
 - [ ] **Deploy command** — `/deploy` to pull latest code and restart vegapunk
 - [ ] **Sync command** — `/sync` to pull dotfiles and update skills on VPS
 
