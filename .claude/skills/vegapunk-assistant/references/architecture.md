@@ -14,18 +14,23 @@
 
 - **Server**: Hetzner CX43 (8 vCPU, 16GB RAM, Ubuntu 24.04)
 - **IP**: 46.224.215.213
-- **User**: `vegapunk` (non-root, for security — Claude Code refuses --dangerously-skip-permissions as root)
+- **User**: `vegapunk` (non-root, but with full sudo/kubectl/journalctl access)
+- **Permissions**: passwordless sudo, `adm` + `systemd-journal` groups, own kubeconfig
 - **Service**: systemd unit `vegapunk.service`
 - **Redis**: runs in K3s cluster, `assistant` namespace, ClusterIP accessed from host
-- **Claude Code**: v2.1.81, authenticated as `vegapunk` user
+- **Claude Code**: authenticated as `vegapunk` user
 - **GitHub CLI**: authenticated as `shpatjakupi`, full repo + workflow access
+- **kubectl**: `KUBECONFIG=/home/vegapunk/.kube/config` — full cluster access
 - **Skills**: synced from `.dotfiles` repo to `~/.claude/skills/`
 
 ## Key Design Decisions
 
-### Non-root execution
+### Non-root execution with full access
 Claude Code blocks `--dangerously-skip-permissions` under root/sudo. Vegapunk runs as
 a dedicated `vegapunk` user with its own home directory, Claude auth, and project files.
+The user has passwordless sudo (`/etc/sudoers.d/vegapunk`), own kubeconfig
+(`~/.kube/config`), and membership in `adm` + `systemd-journal` groups — giving it
+the same capabilities as root for all practical purposes.
 
 ### Redis for sessions
 Each Telegram chat ID maps to a Claude session ID and active project name in Redis.
