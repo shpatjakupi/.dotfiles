@@ -32,15 +32,28 @@ Each Telegram chat ID maps to a Claude session ID and active project name in Red
 Sessions persist for 30 days. `/new` clears the session, `/project <name>` switches
 the working directory and starts a fresh session.
 
+### Usage tracking
+Each message tracks input/output tokens, cache tokens, cost (USD), and duration.
+Values are accumulated per session in Redis and displayed via `/status`. Rate limit
+events are also captured and shown.
+
 ### Stream-JSON parsing
 Claude Code outputs stream-json format. We only extract the final `result` event
 to avoid duplicate text (earlier version captured both deltas and result, causing
-doubled responses).
+doubled responses). Also parses `rate_limit_event` for rate limit status/reset time.
 
 ### Project switching
 `/project <name>` changes the `cwd` passed to Claude Code subprocess. Each project
 maps to a git repo cloned under `/home/vegapunk/projects/`. Session is cleared on
 project switch to avoid context bleeding.
+
+### Personality injection
+On the first message of a new session (no existing sessionId), `personality.md` is
+prepended as system context. This sets tone (concise, Danish, One Piece reference).
+
+### Workspace files
+`workspace/CLAUDE.md` gives Claude self-awareness (who it is, where it runs, what
+systems are available). `workspace/personality.md` defines tone and behavior.
 
 ## Environment Variables
 
@@ -59,6 +72,9 @@ project switch to avoid context bleeding.
 | Vegapunk runtime | `/home/vegapunk/vegapunk/` |
 | Vegapunk git repo | `/home/vegapunk/projects/vegapunk/` |
 | Project repos | `/home/vegapunk/projects/*` |
+| Workspace files | `/home/vegapunk/vegapunk/workspace/` |
+| CLAUDE.md | `/home/vegapunk/vegapunk/workspace/CLAUDE.md` |
+| personality.md | `/home/vegapunk/vegapunk/workspace/personality.md` |
 | Claude config | `/home/vegapunk/.claude/` |
 | Skills | `/home/vegapunk/.claude/skills/` |
 | Dotfiles repo | `/home/vegapunk/projects/.dotfiles/` |

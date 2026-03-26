@@ -12,6 +12,10 @@ Features planned or considered for Vegapunk, roughly ordered by priority.
 - [x] systemd service with auto-restart
 - [x] GitHub repos cloned on VPS
 - [x] Skills synced from .dotfiles
+- [x] `/status` command (usage, tokens, cost, rate limits, uptime)
+- [x] Personality injection (`personality.md` on first session message)
+- [x] Claude self-awareness (`workspace/CLAUDE.md`)
+- [x] GitHub repo created (shpatjakupi/vegapunk)
 
 ## Phase 2: Core Features
 - [ ] **BullMQ job queues** — proper async job handling with retry and dead-letter

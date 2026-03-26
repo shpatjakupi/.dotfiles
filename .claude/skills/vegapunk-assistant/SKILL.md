@@ -38,14 +38,16 @@ Quick overview:
 ```
 Telegram (phone) --> grammy bot --> message router
                                         |
-                    /new, /help, /project <name>
+                    /new, /help, /status, /project <name>
                                         |
                                    chat handler
+                                   (injects personality.md on first msg)
                                         |
                               Claude Code subprocess
                               (cwd = active project)
+                              (reads workspace/CLAUDE.md)
                                         |
-                                  Redis (sessions)
+                                  Redis (sessions + usage tracking)
                                   (K3s, assistant ns)
 ```
 
@@ -57,17 +59,30 @@ vegapunk/
 │   ├── main.ts                    # bootstrap, wiring, startup
 │   ├── infra/
 │   │   ├── config.ts              # env vars -> typed config (Zod)
-│   │   ├── session-store.ts       # Redis: chat ID -> session ID + project
-│   │   ├── claude-subprocess.ts   # spawn Claude Code CLI, parse stream-json
+│   │   ├── session-store.ts       # Redis: sessions, projects, usage, rate limits
+│   │   ├── claude-subprocess.ts   # spawn Claude Code CLI, parse stream-json + usage
 │   │   └── telegram.ts           # grammy adapter, message splitting
 │   └── orchestration/
 │       ├── message-router.ts      # command routing + project paths
-│       └── chat-handler.ts        # send prompt to Claude, return response
+│       └── chat-handler.ts        # send prompt to Claude, personality injection
+├── workspace/
+│   ├── CLAUDE.md                  # self-awareness: who am I, what can I access
+│   └── personality.md             # tone: concise, Danish, One Piece reference
 ├── package.json
 ├── tsconfig.json
 ├── biome.json
 └── .env.example
 ```
+
+## Telegram Commands
+
+| Command | What it does |
+|---------|-------------|
+| `/new` | Clear session, start fresh |
+| `/project <name>` | Switch Claude's working directory |
+| `/status` | Show session, usage, tokens, cost, rate limit, uptime |
+| `/help` | Show available commands |
+| (anything else) | Chat with Claude Code |
 
 ## How Changes Are Deployed
 
@@ -77,7 +92,8 @@ vegapunk/
 ```bash
 ssh root@46.224.215.213
 su - vegapunk -c "cd ~/projects/vegapunk && git pull"
-cp -r /home/vegapunk/projects/vegapunk/src /home/vegapunk/vegapunk/src
+cp -r /home/vegapunk/projects/vegapunk/src /home/vegapunk/projects/vegapunk/workspace /home/vegapunk/vegapunk/
+chown -R vegapunk:vegapunk /home/vegapunk/vegapunk/src /home/vegapunk/vegapunk/workspace
 systemctl restart vegapunk
 ```
 
