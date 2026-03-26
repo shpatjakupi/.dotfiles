@@ -81,6 +81,7 @@ vegapunk/
 | `/new` | Clear session, start fresh |
 | `/project <name>` | Switch Claude's working directory |
 | `/status` | Show session, usage, tokens, cost, rate limit, uptime |
+| `/restart` | Self-restart via detached systemctl (sends reply first) |
 | `/help` | Show available commands |
 | (anything else) | Chat with Claude Code |
 

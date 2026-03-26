@@ -16,6 +16,9 @@ Features planned or considered for Vegapunk, roughly ordered by priority.
 - [x] Personality injection (`personality.md` on first session message)
 - [x] Claude self-awareness (`workspace/CLAUDE.md`)
 - [x] GitHub repo created (shpatjakupi/vegapunk)
+- [x] Full system access (passwordless sudo, kubectl, journalctl)
+- [x] `/restart` command (self-restart via Telegram)
+- [x] Subprocess robustness (30 min timeout, env cleanup, stale session fallback)
 
 ## Phase 2: Core Features
 - [ ] **BullMQ job queues** — proper async job handling with retry and dead-letter

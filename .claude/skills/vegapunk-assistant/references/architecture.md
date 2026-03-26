@@ -42,6 +42,13 @@ Each message tracks input/output tokens, cache tokens, cost (USD), and duration.
 Values are accumulated per session in Redis and displayed via `/status`. Rate limit
 events are also captured and shown.
 
+### Subprocess robustness
+- **Timeout**: 30 minutes (was 5 min, caused exit code 143 / SIGTERM)
+- **Env cleanup**: Removes `CLAUDECODE` and `CLAUDE_CODE_ENTRYPOINT` from env to prevent
+  Claude Code self-nesting detection issues
+- **Stale session fallback**: If `--resume` fails, automatically retries with a fresh
+  session instead of returning an error
+
 ### Stream-JSON parsing
 Claude Code outputs stream-json format. We only extract the final `result` event
 to avoid duplicate text (earlier version captured both deltas and result, causing
