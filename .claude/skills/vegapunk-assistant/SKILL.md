@@ -60,7 +60,8 @@ vegapunk/
 │   ├── infra/
 │   │   ├── config.ts              # env vars -> typed config (Zod)
 │   │   ├── session-store.ts       # Redis: sessions, projects, usage, rate limits
-│   │   ├── claude-subprocess.ts   # spawn Claude Code CLI, parse stream-json + usage
+│   │   ├── claude-subprocess.ts   # spawn Claude Code CLI, stream thinking/text/tool events
+│   │   ├── markdown-to-telegram.ts # convert Claude markdown to Telegram HTML
 │   │   └── telegram.ts           # grammy adapter, message splitting
 │   └── orchestration/
 │       ├── message-router.ts      # command routing + project paths
@@ -78,11 +79,13 @@ vegapunk/
 
 | Command | What it does |
 |---------|-------------|
-| `/new` | Clear session, start fresh |
-| `/project <name>` | Switch Claude's working directory |
+| `/new` | Clear session, show command overview |
+| `/help` | Show command overview |
 | `/status` | Show session, usage, tokens, cost, rate limit, uptime |
-| `/restart` | Self-restart via detached systemctl (sends reply first) |
-| `/help` | Show available commands |
+| `/project <name>` | Switch Claude's working directory |
+| `/restart` | Self-restart via detached systemctl |
+| `/refresh` | Sync runtime from git repo + restart (fix: runtime edited directly) |
+| `/rollback` | `git reset --hard HEAD~1` + deploy + restart (fix: bad code in git) |
 | (anything else) | Chat with Claude Code |
 
 ## How Changes Are Deployed
@@ -107,6 +110,7 @@ systemctl restart vegapunk
 | `/project infra` | `/home/vegapunk/projects/infra-gitops` | shpatjakupi/infra-gitops |
 | `/project dotfiles` | `/home/vegapunk/projects/.dotfiles` | shpatjakupi/.dotfiles |
 | `/project vegapunk` | `/home/vegapunk/projects/vegapunk` | shpatjakupi/vegapunk |
+| `/project indfoedsret` | `/home/vegapunk/projects/indfoedsret-app` | shpatjakupi/indfoedsret-app |
 
 ## Inspiration: reclaw (Peter's bot)
 

@@ -50,12 +50,15 @@ events are also captured and shown.
   session instead of returning an error
 
 ### Streaming responses
-Claude Code subprocess stdout is read line-by-line. `assistant` events with text deltas
-are streamed to Telegram via live message editing:
-1. Placeholder `...` sent immediately (`sendMessageGetId`)
-2. `onChunk` callback fires on each text delta, throttled to 1.5s edits
-3. Final `result` event provides authoritative text + usage
-4. Long responses (>4096 chars): first chunk in edited placeholder, rest as new messages
+Claude Code is spawned with `--output-format stream-json --verbose --include-partial-messages`.
+This emits `stream_event` entries with `content_block_start` and `content_block_delta` in real-time.
+Three block types are handled:
+- **thinking** — shown as a separate italic Telegram message, updated live, condensed to last 300 chars at end
+- **tool_use** — shown as emoji status in the response message while no text has arrived yet (e.g. `📖 Read · ⚡ Bash`)
+- **text** — streamed live into the response message, throttled to 1.5s edits
+
+At the end, the final text is converted from markdown to Telegram HTML via `markdown-to-telegram.ts`
+and split into ≤4000 char chunks if needed.
 
 ### Context injection
 Both `CLAUDE.md` and `personality.md` are injected directly into the prompt on the first
