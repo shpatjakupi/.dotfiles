@@ -69,36 +69,46 @@ if [ ! -d "$SKILLS_SOURCE" ]; then
 fi
 
 # Step 3: Scan and categorize skills
+# Supports both flat skills and group folders (one level of nesting)
 echo "Scanning skills..."
 echo ""
 NEW_SKILLS=()
+NEW_SKILL_PATHS=()
 UPDATED_SKILLS=()
+UPDATED_SKILL_PATHS=()
 UNCHANGED_SKILLS=()
 
-for skill_dir in "$SKILLS_SOURCE"/*/; do
-    if [ -d "$skill_dir" ]; then
-        skill_name=$(basename "$skill_dir")
+scan_skill() {
+    local skill_dir="$1"
+    local skill_name
+    skill_name=$(basename "$skill_dir")
 
-        # Skip sync-skills itself to avoid recursion
-        if [ "$skill_name" == "sync-skills" ]; then
-            continue
-        fi
+    [ "$skill_name" == "sync-skills" ] && return
+    [ ! -f "$skill_dir/SKILL.md" ] && return
 
-        # Check if SKILL.md exists
-        if [ ! -f "$skill_dir/SKILL.md" ]; then
-            echo "Skipping $skill_name (no SKILL.md found)"
-            continue
-        fi
+    local target_skill="$SKILLS_TARGET/$skill_name"
 
-        target_skill="$SKILLS_TARGET/$skill_name"
+    if [ ! -d "$target_skill" ]; then
+        NEW_SKILLS+=("$skill_name")
+        NEW_SKILL_PATHS+=("$skill_dir")
+    elif ! diff -rq "$skill_dir" "$target_skill" > /dev/null 2>&1; then
+        UPDATED_SKILLS+=("$skill_name")
+        UPDATED_SKILL_PATHS+=("$skill_dir")
+    else
+        UNCHANGED_SKILLS+=("$skill_name")
+    fi
+}
 
-        if [ ! -d "$target_skill" ]; then
-            NEW_SKILLS+=("$skill_name")
-        elif ! diff -rq "$skill_dir" "$target_skill" > /dev/null 2>&1; then
-            UPDATED_SKILLS+=("$skill_name")
-        else
-            UNCHANGED_SKILLS+=("$skill_name")
-        fi
+for entry in "$SKILLS_SOURCE"/*/; do
+    [ ! -d "$entry" ] && continue
+    if [ -f "$entry/SKILL.md" ]; then
+        # Top-level skill
+        scan_skill "$entry"
+    else
+        # Group folder — scan one level deeper
+        for nested in "$entry"*/; do
+            [ -d "$nested" ] && scan_skill "$nested"
+        done
     fi
 done
 
@@ -147,16 +157,23 @@ fi
 # Step 7: Create target directory
 mkdir -p "$SKILLS_TARGET"
 
-# Step 8: Perform sync
+# Step 8: Perform sync — always install flat into SKILLS_TARGET
 echo ""
 echo "Syncing skills..."
 
 SYNCED_COUNT=0
 
-for skill in "${NEW_SKILLS[@]}" "${UPDATED_SKILLS[@]}"; do
-    echo "  $skill"
-    rm -rf "$SKILLS_TARGET/$skill"
-    cp -r "$SKILLS_SOURCE/$skill" "$SKILLS_TARGET/"
+for i in "${!NEW_SKILLS[@]}"; do
+    echo "  ${NEW_SKILLS[$i]}"
+    rm -rf "$SKILLS_TARGET/${NEW_SKILLS[$i]}"
+    cp -r "${NEW_SKILL_PATHS[$i]}" "$SKILLS_TARGET/"
+    SYNCED_COUNT=$((SYNCED_COUNT + 1))
+done
+
+for i in "${!UPDATED_SKILLS[@]}"; do
+    echo "  ${UPDATED_SKILLS[$i]}"
+    rm -rf "$SKILLS_TARGET/${UPDATED_SKILLS[$i]}"
+    cp -r "${UPDATED_SKILL_PATHS[$i]}" "$SKILLS_TARGET/"
     SYNCED_COUNT=$((SYNCED_COUNT + 1))
 done
 
