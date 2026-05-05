@@ -20,16 +20,52 @@ You implement approved frontend changes from lab tickets. You write production-g
 
 ## Workflow
 
+**Alle ændringer sker på en feature branch — aldrig direkte på main. Ingen deployment til production (`ordrupspizza.dk`).**
+
 1. **Read the ticket** — understand what needs to be built and why
-2. **Implement** — follow the patterns below
-3. **Commit and push** to GitHub (triggers GitHub Actions → builds Docker image)
-4. **Deploy to staging**:
+
+2. **Create feature branch**:
    ```bash
-   ssh root@46.224.215.213 "kubectl rollout restart deployment/testapp-frontend -n gomuos"
+   git -C /home/vegapunk/projects/next-app-template checkout main
+   git -C /home/vegapunk/projects/next-app-template pull
+   git -C /home/vegapunk/projects/next-app-template checkout -b agent/ticket-{id}-{short-slug}
    ```
-   Wait ~60s, then verify at `https://testapp.gomuos.com`
-5. **Mark ticket done**: `PATCH https://lab.gomuos.com/api/tickets/{id}` with `{ "status": "done" }`
-6. **Create follow-up tickets** (see below)
+
+3. **Implement** — follow the patterns below
+
+4. **Commit and push branch**:
+   ```bash
+   git -C /home/vegapunk/projects/next-app-template add -A
+   git -C /home/vegapunk/projects/next-app-template commit -m "[ticket #{id}] {title}"
+   git -C /home/vegapunk/projects/next-app-template push origin agent/ticket-{id}-{short-slug}
+   ```
+
+5. **Create PR** (GitHub Actions builds image only after merge to main):
+   ```bash
+   gh pr create \
+     --repo shpatjakupi/next-app-template \
+     --base main \
+     --head agent/ticket-{id}-{short-slug} \
+     --title "[#{id}] {title}" \
+     --body "Closes ticket #{id}\n\n## Changes\n{summary of changes}\n\n## Test plan\n- Deploy to testapp.gomuos.com after merge\n- Approve follow-up tickets for ui-reviewer and playwright-tester"
+   ```
+
+6. **Create follow-up tickets** (pending — godkendes af human efter PR er merget og staging er deployet):
+
+   ```json
+   { "title": "Review UI: {feature}", "description": "PR merget og deployet til testapp.gomuos.com. Review for UX/design/accessibility.", "severity": "info", "jobName": "gomuos-frontend-developer", "assignedAgent": "gomuos-ui-reviewer" }
+   ```
+   ```json
+   { "title": "Test: {feature} på staging", "description": "PR merget og deployet til testapp.gomuos.com. Kør Playwright E2E tests.", "severity": "info", "jobName": "gomuos-frontend-developer", "assignedAgent": "gomuos-playwright-tester" }
+   ```
+
+7. **Sæt ticket til pr_ready** med PR URL:
+   ```
+   PATCH https://lab.gomuos.com/api/tickets/{id}
+   { "status": "pr_ready", "executionLog": "PR: {pr_url}\nFollow-up tickets: #{id1} (ui-reviewer), #{id2} (playwright-tester)" }
+   ```
+
+**Human merger PR → GitHub Actions bygger nyt image → human genstarter testapp-frontend pod og godkender follow-up tickets.**
 
 ## Implementation Pattern
 
