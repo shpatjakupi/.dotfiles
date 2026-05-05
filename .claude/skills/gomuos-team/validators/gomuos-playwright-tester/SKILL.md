@@ -28,13 +28,157 @@ GomuOS-specific context below takes precedence.
 
 1. **Read the ticket** — understand what feature to test and what the happy path is
 2. **Check existing tests** in `/home/vegapunk/projects/next-app-template/e2e/` to avoid duplication
-3. **Write tests** following the patterns below
-4. **Run tests** against staging:
+3. **Set up test data** if needed — see "Test Data Setup" section below
+4. **Write tests** following the patterns below
+5. **Run tests** against staging:
    ```bash
    ssh root@46.224.215.213 "cd /home/vegapunk/projects/next-app-template && npx playwright test e2e/<test-file> --reporter=line"
    ```
-5. **On failure**: create a ticket (see below), then mark your ticket done
-6. **On pass**: mark ticket done and report results
+6. **On failure**: create a ticket (see below), then mark your ticket done
+7. **On pass**: mark ticket done and report results
+
+## Test Data Setup
+
+Tests run against a live staging environment. Use the flows below to put staging in the right state before a test suite runs. **Always prefer creating data via the actual UI flow** — it tests the real path and is more realistic than DB injection.
+
+### Required state per test area
+
+| Test area | Required state | How to set it up |
+|---|---|---|
+| Checkout flow | Menu items exist + shop is open | Verify on staging — should always be true |
+| Admin order management | At least one pending order | Run `createPendingOrder` fixture before the suite |
+| Admin accepts/rejects order | Pending order exists | Run `createPendingOrder` fixture |
+| Order countdown timer | Order accepted + pickup time set | Run `createPendingOrder` + accept it via admin |
+| Wolt delivery status | Accepted order with Wolt delivery | Requires HTTP test webhook (see below) |
+| Menu management | Admin logged in | Admin auth setup (see below) |
+
+### Admin auth setup
+
+Add to `e2e/auth.setup.ts` alongside customer auth:
+
+```typescript
+setup('authenticate as admin', async ({ page }) => {
+  await page.goto('https://testapp.gomuos.com/admin/login');
+  await page.getByLabel('Brugernavn').fill(process.env.ADMIN_USERNAME!);
+  await page.getByLabel('Adgangskode').fill(process.env.ADMIN_PASSWORD!);
+  await page.getByRole('button', { name: 'Log ind' }).click();
+  await page.waitForURL('**/admin/**');
+  await page.context().storageState({ path: 'e2e/.auth/admin.json' });
+});
+```
+
+Required env vars on VPS: `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `CUSTOMER_USERNAME`, `CUSTOMER_PASSWORD`
+
+### Creating a pending order (via UI flow)
+
+Use this fixture before any test that needs an order in the admin dashboard:
+
+```typescript
+// e2e/fixtures/index.ts
+
+export async function createPendingOrder(customerPage: Page): Promise<void> {
+  // 1. Go to menu
+  await customerPage.goto('https://testapp.gomuos.com');
+  
+  // 2. Add first available item to cart
+  await customerPage.getByRole('button', { name: 'Tilføj til kurv' }).first().click();
+  
+  // 3. Go to checkout
+  await customerPage.getByRole('link', { name: /kurv|checkout/i }).click();
+  
+  // 4. Fill checkout form (pickup, not delivery — simpler)
+  await customerPage.getByLabel('Navn').fill('Test Testsen');
+  await customerPage.getByLabel('Telefon').fill('12345678');
+  // Select pickup if toggle exists
+  const pickupToggle = customerPage.getByRole('button', { name: /afhent/i });
+  if (await pickupToggle.isVisible()) await pickupToggle.click();
+  
+  // 5. Submit order
+  await customerPage.getByRole('button', { name: /bestil|send/i }).click();
+  
+  // 6. Complete Bambora test payment
+  await customerPage.waitForURL('**/checkout.bambora.com/**', { timeout: 15000 });
+  await customerPage.getByLabel(/card.*number|kortnummer/i).fill('4111 1111 1111 1111');
+  await customerPage.getByLabel(/expiry|udløb/i).fill('12/30');
+  await customerPage.getByLabel(/cvc|cvv/i).fill('123');
+  await customerPage.getByRole('button', { name: /pay|betal/i }).click();
+  
+  // 7. Wait for callback — order now pending in admin
+  await customerPage.waitForURL('**/payment/callback**', { timeout: 20000 });
+}
+```
+
+Use in a test file:
+```typescript
+test.beforeEach(async ({ browser }) => {
+  const customerContext = await browser.newContext({ 
+    storageState: 'e2e/.auth/customer.json' 
+  });
+  const customerPage = await customerContext.newPage();
+  await createPendingOrder(customerPage);
+  await customerContext.close();
+});
+```
+
+### Accepting an order (to test countdown timer / order completion)
+
+After `createPendingOrder`, run this with the admin page:
+
+```typescript
+export async function acceptLatestOrder(adminPage: Page, pickupMinutes = 20): Promise<void> {
+  await adminPage.goto('https://testapp.gomuos.com/admin');
+  // Wait for real-time order to appear via WebSocket
+  await adminPage.waitForSelector('[data-testid="pending-order"]', { timeout: 15000 });
+  
+  // Set pickup time and accept
+  const orderCard = adminPage.locator('[data-testid="pending-order"]').first();
+  await orderCard.getByLabel(/minutter|tid/i).fill(String(pickupMinutes));
+  await orderCard.getByRole('button', { name: /accepter/i }).click();
+}
+```
+
+### Database fallback (for states that can't be reached via UI)
+
+Use only when the UI path is impractical — e.g., testing an order from yesterday for history:
+
+```bash
+ssh root@46.224.215.213 "kubectl exec -it mysql-0 -n gomuos -- mysql -u admin -p testapp"
+```
+
+Useful queries:
+```sql
+-- See recent test orders
+SELECT id, is_payment_successful, created_date FROM \`order\` ORDER BY id DESC LIMIT 10;
+
+-- Force an order to a specific status (use sparingly)
+UPDATE \`order\` SET is_payment_successful = 1 WHERE id = <id>;
+
+-- Clean up test orders (by test customer phone number)
+DELETE FROM \`order\` WHERE phone_number = '12345678';
+```
+
+### Sending a test Wolt webhook
+
+```bash
+curl -X POST https://testapp.gomuos.com/api/wolt/webhook \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "delivery.status.updated",
+    "order_id": "<order_id>",
+    "status": "picked_up",
+    "courier": { "name": "Test Courier" }
+  }'
+```
+
+### Cleanup after tests
+
+Test orders created via `createPendingOrder` use phone `12345678`. Clean up after a full suite run:
+
+```bash
+ssh root@46.224.215.213 "kubectl exec -it mysql-0 -n gomuos -- mysql -u admin -p testapp -e \"DELETE FROM \\\`order\\\` WHERE phone_number = '12345678';\""
+```
+
+---
 
 ## Test Structure
 
