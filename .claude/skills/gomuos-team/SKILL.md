@@ -108,26 +108,31 @@ The manager creates tickets for work that hunters haven't captured — spotted v
 
 ## Ticket Routing (Manager logic)
 
+Hunters **create** tickets — they are never assigned tickets. The manager routes unassigned tickets to devs and validators.
+
 ```
-New unrouted ticket arrives
+Unassigned ticket arrives (no assignedAgent)
   ↓
 gomuos-manager reads ticket
   ↓
-Domain-specific? → route to specialist hunter
-  ├── checkout/payment/promo     → gomuos-checkout-specialist
-  ├── wolt/delivery/webhook      → gomuos-wolt-specialist
-  ├── menu/food/beverage/filling → gomuos-menu-specialist
-  ├── order lifecycle/ws         → gomuos-orders-specialist
-  └── admin/shop config          → gomuos-admin-specialist
+Is it an implementation task?
+  ├── frontend change needed → gomuos-frontend-developer
+  └── backend change needed  → gomuos-backend-developer
   ↓
-Implementation ticket?
-  ├── frontend                   → gomuos-frontend-developer
-  └── backend                    → gomuos-backend-developer
+Is it a validation task?
+  ├── code review needed     → gomuos-code-reviewer
+  └── E2E test needed        → gomuos-playwright-tester
   ↓
-Post-implementation?
-  ├── code review                → gomuos-code-reviewer
-  └── E2E test                   → gomuos-playwright-tester
+Is it a vague/complex ticket the human created manually?
+  → route to the relevant hunter for analysis + sub-ticket creation:
+    ├── checkout/payment/promo     → gomuos-checkout-specialist
+    ├── wolt/delivery/webhook      → gomuos-wolt-specialist
+    ├── menu/food/beverage/filling → gomuos-menu-specialist
+    ├── order lifecycle/ws         → gomuos-orders-specialist
+    └── admin/shop config          → gomuos-admin-specialist
 ```
+
+In normal operation, hunters run on cron and create tickets directly with `assignedAgent` already set — the manager doesn't need to touch them.
 
 ## Lab API
 
