@@ -71,53 +71,45 @@ For architecture context (entities, existing controllers, package structure): re
 
 ## Workflow
 
-**Alle ændringer sker på en feature branch — aldrig direkte på main. Ingen deployment til production (`ordrupspizza.dk`).**
+**Alle ændringer sker på en feature branch der merges til main. Ingen deployment til production (`ordrupspizza.dk`).**
 
 1. **Read the ticket** — understand the change and its scope
 2. **Check `food-app-recommendations` skill** if the ticket touches recommendations/fillings
 
 3. **Create feature branch**:
    ```bash
-   git -C /home/vegapunk/projects/order-backend checkout main
-   git -C /home/vegapunk/projects/order-backend pull
+   git -C /home/vegapunk/projects/order-backend checkout main && git -C /home/vegapunk/projects/order-backend pull
    git -C /home/vegapunk/projects/order-backend checkout -b agent/ticket-{id}-{short-slug}
    ```
 
 4. **Implement** following the chain above
 
-5. **Commit and push branch**:
+5. **Commit, merge to main og push** (trigger GitHub Actions → bygger nyt Docker image):
    ```bash
    git -C /home/vegapunk/projects/order-backend add -A
    git -C /home/vegapunk/projects/order-backend commit -m "[ticket #{id}] {title}"
-   git -C /home/vegapunk/projects/order-backend push origin agent/ticket-{id}-{short-slug}
+   git -C /home/vegapunk/projects/order-backend checkout main
+   git -C /home/vegapunk/projects/order-backend merge agent/ticket-{id}-{short-slug} --no-ff -m "Merge agent/ticket-{id}-{short-slug}"
+   git -C /home/vegapunk/projects/order-backend push origin main
+   git -C /home/vegapunk/projects/order-backend branch -d agent/ticket-{id}-{short-slug}
    ```
 
-6. **Create PR**:
+6. **Deploy til testapp** (venter på GitHub Actions — ca. 3-5 min for backend Maven build):
    ```bash
-   gh pr create \
-     --repo shpatjakupi/order-backend \
-     --base main \
-     --head agent/ticket-{id}-{short-slug} \
-     --title "[#{id}] {title}" \
-     --body "Closes ticket #{id}\n\n## Changes\n{summary}\n\n## Test plan\n- Deploy testapp-backend after merge\n- Smoke test endpoint on testapp.gomuos.com\n- Approve follow-up tickets for code-reviewer and playwright-tester"
+   ssh root@46.224.215.213 "kubectl rollout restart deployment/testapp-backend -n gomuos && kubectl rollout status deployment/testapp-backend -n gomuos --timeout=120s"
    ```
+   Smoke test det ændrede endpoint mod `https://testapp.gomuos.com`.
 
-7. **Create follow-up tickets** (pending — godkendes af human efter PR er merget og staging er deployet):
-
+7. **Mark ticket done og opret follow-up tickets**:
+   ```
+   PATCH https://lab.gomuos.com/api/tickets/{id}  →  { "status": "done", "executionLog": "..." }
+   ```
    ```json
-   { "title": "Review: {feature} backend changes", "description": "PR merget, testapp-backend restartet. Review for security, contracts og conventions.", "severity": "info", "jobName": "gomuos-backend-developer", "assignedAgent": "gomuos-code-reviewer" }
+   { "title": "Review: {feature} backend changes", "description": "Deployet til testapp-backend. Review for security, contracts og conventions.", "severity": "info", "jobName": "gomuos-backend-developer", "assignedAgent": "gomuos-code-reviewer" }
    ```
    ```json
    { "title": "Test: {feature} på staging", "description": "Backend live på testapp.gomuos.com. Kør E2E tests for det påvirkede flow.", "severity": "info", "jobName": "gomuos-backend-developer", "assignedAgent": "gomuos-playwright-tester" }
    ```
-
-8. **Sæt ticket til pr_ready** med PR URL:
-   ```
-   PATCH https://lab.gomuos.com/api/tickets/{id}
-   { "status": "pr_ready", "executionLog": "PR: {pr_url}\nFollow-up tickets: #{id1} (code-reviewer), #{id2} (playwright-tester)" }
-   ```
-
-**Human merger PR → GitHub Actions bygger nyt image → human genstarter testapp-backend pod og godkender follow-up tickets.**
 
 ## After Implementation
 

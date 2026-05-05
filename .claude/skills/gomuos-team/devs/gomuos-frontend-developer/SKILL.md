@@ -20,52 +20,44 @@ You implement approved frontend changes from lab tickets. You write production-g
 
 ## Workflow
 
-**Alle ændringer sker på en feature branch — aldrig direkte på main. Ingen deployment til production (`ordrupspizza.dk`).**
+**Alle ændringer sker på en feature branch der merges til main. Ingen deployment til production (`ordrupspizza.dk`).**
 
 1. **Read the ticket** — understand what needs to be built and why
 
 2. **Create feature branch**:
    ```bash
-   git -C /home/vegapunk/projects/next-app-template checkout main
-   git -C /home/vegapunk/projects/next-app-template pull
+   git -C /home/vegapunk/projects/next-app-template checkout main && git -C /home/vegapunk/projects/next-app-template pull
    git -C /home/vegapunk/projects/next-app-template checkout -b agent/ticket-{id}-{short-slug}
    ```
 
 3. **Implement** — follow the patterns below
 
-4. **Commit and push branch**:
+4. **Commit, merge to main og push** (trigger GitHub Actions → bygger nyt Docker image):
    ```bash
    git -C /home/vegapunk/projects/next-app-template add -A
    git -C /home/vegapunk/projects/next-app-template commit -m "[ticket #{id}] {title}"
-   git -C /home/vegapunk/projects/next-app-template push origin agent/ticket-{id}-{short-slug}
+   git -C /home/vegapunk/projects/next-app-template checkout main
+   git -C /home/vegapunk/projects/next-app-template merge agent/ticket-{id}-{short-slug} --no-ff -m "Merge agent/ticket-{id}-{short-slug}"
+   git -C /home/vegapunk/projects/next-app-template push origin main
+   git -C /home/vegapunk/projects/next-app-template branch -d agent/ticket-{id}-{short-slug}
    ```
 
-5. **Create PR** (GitHub Actions builds image only after merge to main):
+5. **Deploy til testapp** (venter på at GitHub Actions er færdig — ca. 5 min):
    ```bash
-   gh pr create \
-     --repo shpatjakupi/next-app-template \
-     --base main \
-     --head agent/ticket-{id}-{short-slug} \
-     --title "[#{id}] {title}" \
-     --body "Closes ticket #{id}\n\n## Changes\n{summary of changes}\n\n## Test plan\n- Deploy to testapp.gomuos.com after merge\n- Approve follow-up tickets for ui-reviewer and playwright-tester"
+   ssh root@46.224.215.213 "kubectl rollout restart deployment/testapp-frontend -n gomuos && kubectl rollout status deployment/testapp-frontend -n gomuos --timeout=90s"
    ```
+   Verificer på `https://testapp.gomuos.com`.
 
-6. **Create follow-up tickets** (pending — godkendes af human efter PR er merget og staging er deployet):
-
-   ```json
-   { "title": "Review UI: {feature}", "description": "PR merget og deployet til testapp.gomuos.com. Review for UX/design/accessibility.", "severity": "info", "jobName": "gomuos-frontend-developer", "assignedAgent": "gomuos-ui-reviewer" }
+6. **Mark ticket done og opret follow-up tickets**:
+   ```
+   PATCH https://lab.gomuos.com/api/tickets/{id}  →  { "status": "done", "executionLog": "..." }
    ```
    ```json
-   { "title": "Test: {feature} på staging", "description": "PR merget og deployet til testapp.gomuos.com. Kør Playwright E2E tests.", "severity": "info", "jobName": "gomuos-frontend-developer", "assignedAgent": "gomuos-playwright-tester" }
+   { "title": "Review UI: {feature}", "description": "Deployet til testapp.gomuos.com. Review for UX/design/accessibility.", "severity": "info", "jobName": "gomuos-frontend-developer", "assignedAgent": "gomuos-ui-reviewer" }
    ```
-
-7. **Sæt ticket til pr_ready** med PR URL:
+   ```json
+   { "title": "Test: {feature} på staging", "description": "Deployet til testapp.gomuos.com. Kør Playwright E2E tests.", "severity": "info", "jobName": "gomuos-frontend-developer", "assignedAgent": "gomuos-playwright-tester" }
    ```
-   PATCH https://lab.gomuos.com/api/tickets/{id}
-   { "status": "pr_ready", "executionLog": "PR: {pr_url}\nFollow-up tickets: #{id1} (ui-reviewer), #{id2} (playwright-tester)" }
-   ```
-
-**Human merger PR → GitHub Actions bygger nyt image → human genstarter testapp-frontend pod og godkender follow-up tickets.**
 
 ## Implementation Pattern
 
