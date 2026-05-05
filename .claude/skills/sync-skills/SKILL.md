@@ -101,11 +101,13 @@ scan_skill() {
 
 for entry in "$SKILLS_SOURCE"/*/; do
     [ ! -d "$entry" ] && continue
-    # Always install the entry itself if it has SKILL.md
     [ -f "$entry/SKILL.md" ] && scan_skill "$entry"
-    # Always scan one level deeper for nested skills
     for nested in "$entry"*/; do
-        [ -d "$nested" ] && scan_skill "$nested"
+        [ ! -d "$nested" ] && continue
+        [ -f "$nested/SKILL.md" ] && scan_skill "$nested"
+        for deep in "$nested"*/; do
+            [ -d "$deep" ] && scan_skill "$deep"
+        done
     done
 done
 
