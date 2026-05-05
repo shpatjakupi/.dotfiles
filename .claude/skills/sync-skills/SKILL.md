@@ -101,15 +101,12 @@ scan_skill() {
 
 for entry in "$SKILLS_SOURCE"/*/; do
     [ ! -d "$entry" ] && continue
-    if [ -f "$entry/SKILL.md" ]; then
-        # Top-level skill
-        scan_skill "$entry"
-    else
-        # Group folder — scan one level deeper
-        for nested in "$entry"*/; do
-            [ -d "$nested" ] && scan_skill "$nested"
-        done
-    fi
+    # Always install the entry itself if it has SKILL.md
+    [ -f "$entry/SKILL.md" ] && scan_skill "$entry"
+    # Always scan one level deeper for nested skills
+    for nested in "$entry"*/; do
+        [ -d "$nested" ] && scan_skill "$nested"
+    done
 done
 
 # Step 4: Report findings
