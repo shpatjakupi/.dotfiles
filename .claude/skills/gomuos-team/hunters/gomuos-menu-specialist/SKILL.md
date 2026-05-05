@@ -1,6 +1,6 @@
 ---
 name: gomuos-menu-specialist
-description: Domain specialist for the GomuOS menu and catalog. Analyzes tickets touching food items, beverages, fillings, sauces, sides, combos, or the recommendation system — then creates precise sub-tickets for gomuos-backend-developer and gomuos-frontend-developer. Does NOT implement code itself.
+description: Domain specialist and proactive auditor for the GomuOS menu and catalog. Triggered by cron to audit menu entities, admin management UI, and customer-facing item display for bugs and missing features — creates tickets for findings. Also analyzes incoming tickets touching food items, beverages, fillings, sauces, sides, combos, or the recommendation system and creates precise sub-tickets. Does NOT implement code itself.
 ---
 
 # GomuOS Menu Specialist
@@ -66,7 +66,62 @@ The **recommendation system** is a sub-feature: each Food can have recommended o
 | `services/admin/getter/getFillingsCategories.tsx` | Admin filling categories |
 | `app/api/menu/` | Next.js proxy for menu endpoints |
 
-## Your Workflow
+## Proactive Audit Workflow
+
+Run this when triggered by cron — no incoming ticket, just audit the code.
+
+**Goal**: The menu powers the cart which feeds checkout (Priority 1). Menu issues that affect what the customer can order or add to cart are high priority.
+
+### Steps
+
+1. **Check current priorities**
+   Read `~/.claude/skills/gomuos-team/GOALS.md`. If a finding blocks the checkout flow, escalate its severity.
+
+2. **Check for duplicate tickets**
+   `GET https://lab.gomuos.com/api/tickets?status=pending` — skip any issue already tracked.
+
+3. **Audit backend menu files** on VPS (`/home/vegapunk/projects/order-backend`):
+   - `MenuRestController.java` — all endpoints return DTOs (never raw entities)? Errors handled with proper status codes?
+   - `entity/Food.java` — `recommendedFoodIds` / `recommendedBeverageIds`: null-safe? What happens when referenced item is deleted?
+   - `service/menu/` — combo pricing calculated in service (not controller)? Edge case: combo with deleted item?
+   - `AdminRestController.java` (menu section) — image upload hits `ImageController`? Missing image handled gracefully?
+
+4. **Audit frontend menu files** on VPS (`/home/vegapunk/projects/next-app-template`):
+   - `components/ItemCard/` — no image fallback? Price display correct for items with fillings/sides?
+   - `components/Cart/CartModal.tsx` — cart total recalculates correctly when item removed? Mobile scroll behavior?
+   - `components/Checkout/RecommendationModal.tsx` — modal shown even when no recommendations? Empty state handled?
+   - `components/AdminFeatures/MenuComponents/EditMenu.tsx` — unsaved changes warning? Long item lists paginated?
+   - `services/menu/` — menu fetch error handled? Customer shown message if menu fails to load?
+
+5. **What to look for**:
+   - Customer can add an out-of-stock/deleted item to cart (no stock check)
+   - `RecommendationModal` crashes or shows blank when all recommendations are deleted items
+   - Missing item image shows broken `<img>` tag
+   - Cart total wrong when item has optional filling selected
+   - Admin creates item but image upload silently fails
+
+6. **Create tickets** for each distinct issue:
+   ```
+   POST https://lab.gomuos.com/api/tickets
+   Authorization: Bearer $LAB_API_KEY
+
+   {
+     "title": "Menu: <short description>",
+     "description": "File: <path>\nObserved: <what was found>\nImpact on checkout: <yes/no and why>\nFix: <what to do>",
+     "severity": "info | warning | error",
+     "jobName": "gomuos-menu-specialist",
+     "assignedAgent": "gomuos-frontend-developer | gomuos-backend-developer"
+   }
+   ```
+   If the issue blocks checkout (Priority 1), set severity `error` and also create a ticket for `gomuos-checkout-specialist`.
+
+7. **Report** — list files audited, issues found, tickets created.
+
+---
+
+## Ticket Analysis Workflow
+
+Run this when given a specific ticket to analyze (not a cron audit).
 
 1. Read the ticket: `GET https://lab.gomuos.com/api/tickets/{id}`
 2. Determine: new entity field? new menu type? recommendation change? admin UI? customer UI?
