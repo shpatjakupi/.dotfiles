@@ -174,8 +174,7 @@ async function runAgent() {
 }
 ```
 
-Current cron jobs: `health-monitor` (every 15 min).
-Planned: hunters run nightly, manager runs daily.
+Current cron jobs: `health-monitor` (every 15 min) + alle 6 hunters (dagligt, staggered 2 min apart). Menu-specialist kører ugentligt (mandag).
 
 ## Project Goals
 
