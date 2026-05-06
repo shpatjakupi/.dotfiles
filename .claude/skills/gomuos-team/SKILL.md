@@ -134,6 +134,21 @@ Is it a vague/complex ticket the human created manually?
 
 In normal operation, hunters run on cron and create tickets directly with `assignedAgent` already set — the manager doesn't need to touch them.
 
+## Ticket Status Flow
+
+```
+pending ──→ approved ──→ in_progress ──→ done
+   │
+   │   human clicks "Spørg agent" (comment system)
+   ├──→ needs_response ──→ in_progress ──→ pending (agent svarede)
+   │
+   └──→ rejected
+```
+
+Agents set `assignedAgent` when creating tickets. The dispatcher in Vegapunk picks up `approved` and `needs_response` tickets every 3 minutes and spawns the agent. For `needs_response`, the agent only reads comments and replies — it does not execute the task.
+
+For full Lab architecture (schema, API routes, comment system, deployment): see **gomuos-lab** skill.
+
 ## Lab API
 
 - **URL**: `https://lab.gomuos.com/api`
@@ -141,14 +156,15 @@ In normal operation, hunters run on cron and create tickets directly with `assig
 
 | Endpoint | Use |
 |----------|-----|
-| `GET /api/tickets?status=pending` | Fetch open tickets |
+| `GET /api/tickets?status=<s>` | Fetch tickets, optional status filter |
 | `POST /api/tickets` | Create ticket |
-| `PATCH /api/tickets/{id}` | Assign agent, mark done |
-| `GET /api/tickets/{id}/poll` | Poll for human approval |
-| `POST /api/jobs` | Register cron job |
-| `PATCH /api/jobs/{name}` | Update job status |
+| `PATCH /api/tickets/{id}` | Update status, assignedAgent, executionLog |
+| `GET /api/tickets/{id}/poll` | Poll for status change (Vegapunk uses this) |
+| `GET /api/tickets/{id}/comments` | Fetch comment thread |
+| `POST /api/tickets/{id}/comments` | Post comment. `askAgent: true` → sets status to `needs_response` |
+| `POST /api/jobs` | Register or update cron job status |
 
-**Ticket format:**
+**Create ticket:**
 ```json
 {
   "title": "Verb-first short description",
@@ -159,22 +175,41 @@ In normal operation, hunters run on cron and create tickets directly with `assig
 }
 ```
 
+**Mark done:**
+```
+PATCH /api/tickets/{id}
+{ "status": "done", "executionLog": "<summary of what was done>" }
+```
+
+**Post comment as agent:**
+```
+POST /api/tickets/{id}/comments
+{ "author": "gomuos-frontend-developer", "body": "<response>" }
+```
+
 ## Cron Integration (Vegapunk)
 
 Agents run as cron jobs in `vegapunk/src/infra/cron.ts`. Pattern:
 ```typescript
 async function runAgent() {
   await lab.updateJobStatus("gomuos-agent-name", "running");
-  try {
-    // spawn Claude Code with the agent skill
-    await lab.updateJobStatus("gomuos-agent-name", "success", output);
-  } catch (err) {
-    await lab.updateJobStatus("gomuos-agent-name", "error", err.message);
-  }
+  // spawn Claude Code via runClaudeStreaming()
+  await lab.updateJobStatus("gomuos-agent-name", "success", output);
 }
 ```
 
-Current cron jobs: `health-monitor` (every 15 min) + alle 6 hunters (dagligt, staggered 2 min apart). Menu-specialist kører ugentligt (mandag).
+**Current schedule:**
+| Job | Interval |
+|-----|----------|
+| `health-monitor` | Every 15 min |
+| `ticket-dispatcher` | Every 3 min — picks up `approved` + `needs_response` |
+| `gomuos-manager` | Every 2 hours |
+| `gomuos-checkout-specialist` | Daily 08:00 |
+| `gomuos-ui-reviewer` | Daily 09:00 |
+| `gomuos-admin-specialist` | Daily 10:00 |
+| `gomuos-orders-specialist` | Daily 11:00 |
+| `gomuos-wolt-specialist` | Daily 12:00 |
+| `gomuos-menu-specialist` | Weekly (Monday) |
 
 ## Project Goals
 
