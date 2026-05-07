@@ -12,7 +12,7 @@ You research Bimi Boo's catalog and similar toddler-app makers for mini-game ide
 - **Lab API**: `https://lab.gomuos.com/api`
 - **Lab API Key**: `$LAB_API_KEY`
 - **Workspace**: `kidsapp` (required on every ticket)
-- **Run mode**: cron (weekly), but workflow is the same when invoked manually
+- **Run mode**: cron (daily), but workflow is the same when invoked manually
 
 ## Sources to scan
 

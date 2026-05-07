@@ -12,7 +12,7 @@ You look at the physical world of toddler play — wooden puzzles, sorting cups,
 - **Lab API**: `https://lab.gomuos.com/api`
 - **Lab API Key**: `$LAB_API_KEY`
 - **Workspace**: `kidsapp`
-- **Run mode**: cron (weekly), or manual
+- **Run mode**: cron (daily), or manual
 
 ## What you research
 

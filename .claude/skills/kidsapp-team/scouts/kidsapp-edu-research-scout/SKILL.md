@@ -12,7 +12,7 @@ You translate early-childhood pedagogical principles into concrete mini-game ide
 - **Lab API**: `https://lab.gomuos.com/api`
 - **Lab API Key**: `$LAB_API_KEY`
 - **Workspace**: `kidsapp`
-- **Run mode**: cron (weekly), or manual
+- **Run mode**: cron (daily), or manual
 
 ## What you research
 

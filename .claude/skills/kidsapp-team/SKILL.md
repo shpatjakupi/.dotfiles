@@ -138,9 +138,9 @@ pending ──→ approved ──→ in_progress ──→ done
 | Job | Interval |
 |-----|----------|
 | `kidsapp-manager` | Every 2 hours |
-| `kidsapp-bimiboo-scout` | Weekly (Tuesday 13:00) |
-| `kidsapp-edu-research-scout` | Weekly (Thursday 13:00) |
-| `kidsapp-physical-toy-scout` | Weekly (Saturday 13:00) |
+| `kidsapp-bimiboo-scout` | Daily 13:00 |
+| `kidsapp-edu-research-scout` | Daily 14:00 |
+| `kidsapp-physical-toy-scout` | Daily 15:00 |
 | `ticket-dispatcher` | Every 3 min — picks up `approved` and `needs_response` for all workspaces |
 
 The dispatcher chooses `cwd` based on agent name. For all `kidsapp-*` agents it uses `/home/vegapunk/projects/kids-app`.
