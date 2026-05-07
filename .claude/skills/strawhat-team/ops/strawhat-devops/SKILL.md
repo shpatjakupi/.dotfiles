@@ -90,7 +90,7 @@ In `/home/vegapunk/projects/infra-gitops/apps/<slug>/`:
 
 **deployment.yaml** — backend and frontend Deployments + Services.
 
-**ingress.yaml** — Traefik IngressRoute for `<slug>.gomuos.com` (frontend at `/`, backend at `/api/*`).
+**ingress.yaml** — Traefik IngressRoute for `<slug>.gomuos.com` (frontend at `/`, backend at `/api/*`). Include a `Certificate` resource referencing the `letsencrypt-prod` ClusterIssuer — cert-manager handles the rest.
 
 **argocd-app.yaml** — Argo Application pointing to `apps/<slug>` in this same infra repo.
 
@@ -123,9 +123,11 @@ kubectl create secret generic <slug>-secret -n gomuos \
   --from-literal=APP_PASSWORD="<random>"
 ```
 
-### Step 5 — DNS
+### Step 5 — DNS (no action needed)
 
-Document in the project comments that `<slug>.gomuos.com` needs an A-record at the registrar pointing to `46.224.215.213`. Post comment with `askHuman: true` so the human knows to add it.
+Wildcard `*.gomuos.com → 46.224.215.213` is already configured at simply.com. Any new subdomain works automatically — you do NOT need to ask the human to add a DNS record. As long as your IngressRoute uses `Host(\`<slug>.gomuos.com\`)`, traffic reaches the cluster immediately.
+
+cert-manager issues a per-subdomain TLS cert via the existing `letsencrypt-prod` ClusterIssuer (HTTP-01 challenge). Just add the standard cert-manager annotations on your IngressRoute / Certificate resource — no manual cert work needed either.
 
 ### Step 6 — PATCH project
 

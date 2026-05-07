@@ -140,9 +140,11 @@ All Straw Hats projects use the GomuOS family by default:
 | Container | Docker, single image per service |
 | Orchestration | k3s on `46.224.215.213` (gomuos namespace, separate Deployment) |
 | GitOps | ArgoCD app under `infra-gitops/apps/<slug>/` |
-| Domain | `<slug>.gomuos.com` via cert-manager |
+| Domain | `<slug>.gomuos.com` via cert-manager (HTTP-01, `letsencrypt-prod` ClusterIssuer) |
 
-The architect can deviate only with explicit human approval (post in project comment thread with `askHuman: true`).
+**Wildcard DNS is already in place:** `*.gomuos.com → 46.224.215.213` is configured at simply.com, so any new subdomain works automatically without manual DNS work. Strawhat-devops only needs to create the IngressRoute and Certificate — no `askHuman` step for DNS.
+
+The architect can deviate from the tech stack only with explicit human approval (post in project comment thread with `askHuman: true`).
 
 ## Project File Layout
 

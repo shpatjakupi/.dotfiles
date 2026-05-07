@@ -64,6 +64,13 @@ Bootstrap once: `ssh root@46.224.215.213 "kubectl apply -n argocd -f -" < argocd
 - **ClusterIssuer**: `letsencrypt-prod` (HTTP-01 challenge via Traefik)
 - **Usage**: add `cert-manager.io/cluster-issuer: letsencrypt-prod` annotation to Ingress + `tls:` block
 - **DNS must resolve** to `46.224.215.213` before HTTP-01 can complete
+
+## DNS
+
+- **Provider**: simply.com — zone for `gomuos.com`
+- **Wildcard**: `*.gomuos.com → 46.224.215.213` is configured. Any new subdomain works automatically — no manual DNS record needed when adding a new app.
+- **Specific records win** over wildcard, so existing `lab.gomuos.com`, `kidsapp.gomuos.com`, `testapp.gomuos.com`, `indfoedsret.gomuos.com` keep their explicit A records (also pointing at `46.224.215.213`).
+- **Apex `gomuos.com`** itself points at simply.com hosting (`93.191.156.57`). Don't add k3s apps at the apex — use a subdomain.
 - **Check status**:
   ```bash
   ssh root@46.224.215.213 "kubectl get certificate -n gomuos && kubectl get challenges -n gomuos"
@@ -124,5 +131,5 @@ ssh root@46.224.215.213 "kubectl apply -f /root/local-file.yaml"
 2. Add TLS to ingress (cert-manager annotation + `tls:` block)
 3. Create `infra-gitops/argocd/<appname>.yaml` ArgoCD Application
 4. Bootstrap ArgoCD app once via `kubectl apply`
-5. Add DNS A record pointing to `46.224.215.213`
-6. Wait for cert-manager HTTP-01 challenge to complete (~2-5 min after DNS propagates)
+5. **No DNS step needed** — `*.gomuos.com` wildcard already points at `46.224.215.213` (see DNS section above). Just use any `<appname>.gomuos.com` host in your ingress.
+6. Wait for cert-manager HTTP-01 challenge to complete (~2-5 min)
