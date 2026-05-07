@@ -14,21 +14,36 @@ This is a **separate workspace from gomuos and strawhats**. Tickets live under w
 ```
 kidsapp-team/
 ├── manager/
-│   └── kidsapp-manager           ← orchestrator, routes tickets, reads GOALS.md
+│   └── kidsapp-manager              ← orchestrator, routes tickets, reads GOALS.md
+├── scouts/                           ← proactive idea-researchers (cron, weekly)
+│   ├── kidsapp-bimiboo-scout        ← Bimi Boo + lignende app-makere
+│   ├── kidsapp-edu-research-scout   ← Montessori, Piaget, pædagogisk forskning
+│   └── kidsapp-physical-toy-scout   ← fysisk legetøj → digital oversættelse
 ├── devs/
-│   └── kidsapp-unity-developer   ← C# scripts, scenes, prefabs, ScriptableObjects
+│   └── kidsapp-unity-developer      ← C# scripts, scenes, prefabs, ScriptableObjects
 ├── validators/
-│   └── kidsapp-code-reviewer     ← Unity best practices, performance, security
+│   └── kidsapp-code-reviewer        ← Unity best practices, performance, security
 └── infra/
-    └── kidsapp-infra             ← deploy knowledge (build pipeline, k3s, ArgoCD)
+    └── kidsapp-infra                ← deploy knowledge (build pipeline, k3s, ArgoCD)
 ```
 
-Hunters and Playwright-tester come later when there is enough code to audit.
+Playwright-tester / WebGL-tester comes later when there is enough gameplay to audit.
 
 ## What Each Group Does
 
 ### Manager
 Orchestrates the team: routes unassigned tickets to the right agent, reads `~/.claude/skills/kidsapp-team/GOALS.md` for current priorities, creates tickets for uncaptured work. Never writes code.
+
+### Scouts (run on cron, weekly)
+Proactively research external sources for mini-game ideas and create idea-tickets in the kidsapp workspace. Each scout has a different angle so we don't get monoculture ideas.
+
+| Scout | Angle |
+|-------|-------|
+| `kidsapp-bimiboo-scout` | What Bimi Boo and competitors already ship |
+| `kidsapp-edu-research-scout` | What pedagogy (Montessori, Piaget, etc.) suggests |
+| `kidsapp-physical-toy-scout` | Physical toys/games translated into digital mechanics |
+
+Scouts create tickets with `assignedAgent: null` — the human approves the idea, then the manager routes approved ideas to `kidsapp-unity-developer`.
 
 ### Devs
 Implement approved tickets. Do NOT write code until a ticket is approved by the human.
@@ -123,6 +138,9 @@ pending ──→ approved ──→ in_progress ──→ done
 | Job | Interval |
 |-----|----------|
 | `kidsapp-manager` | Every 2 hours |
+| `kidsapp-bimiboo-scout` | Weekly (Tuesday 13:00) |
+| `kidsapp-edu-research-scout` | Weekly (Thursday 13:00) |
+| `kidsapp-physical-toy-scout` | Weekly (Saturday 13:00) |
 | `ticket-dispatcher` | Every 3 min — picks up `approved` and `needs_response` for all workspaces |
 
 The dispatcher chooses `cwd` based on agent name. For all `kidsapp-*` agents it uses `/home/vegapunk/projects/kids-app`.
