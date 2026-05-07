@@ -270,6 +270,23 @@ const workspaceId = await getWorkspaceIdBySlug(slug);
 
 The helper caches the slug→id mapping in memory (workspaces are seeded once and never deleted).
 
+## Adding a New Workspace
+
+To onboard a third (or fourth) team — e.g. `kidsapp`, `noteapp`, etc. — touch four places:
+
+1. **Code**: append the slug to `WORKSPACE_SLUGS` in `src/lib/workspace.ts`.
+2. **DB**: insert a row in `lab_workspaces`. From the VPS:
+   ```bash
+   PWD=$(kubectl get secret gomuos-lab-secret -n gomuos -o jsonpath='{.data.DATABASE_URL}' | base64 -d | sed 's/.*://;s/@.*//')
+   kubectl exec mysql-0 -n gomuos -- mysql -u admin "-p$PWD" gomuos_lab -e "
+     INSERT INTO lab_workspaces (slug, name, description) VALUES ('<slug>', '<Display Name>', '<one-line>');
+   "
+   ```
+3. **UI nav**: add an entry in `src/components/Sidebar.tsx` under a new `group:` so it appears in its own section. Reuse `/tickets?workspace=<slug>` if the workspace doesn't need a dedicated detail UI; otherwise build `/<slug>/page.tsx`.
+4. **Agents**: usually a new workspace gets its own team — drop a `<slug>-team/` skill folder in `.dotfiles/.claude/skills/` and wire a `<slug>-manager` cron job in `vegapunk/src/infra/cron.ts`.
+
+A workspace can exist without a dedicated UI page — `gomuos` and `kidsapp` reuse `/tickets` filtered by workspace, while `strawhats` has its own `/strawhats` UI because it owns Projects.
+
 ## Tailwind Theme Tokens
 
 Defined in `tailwind.config.ts`:
@@ -317,6 +334,24 @@ kubectl exec mysql-0 -n gomuos -- mysql -u admin '-p<password>' gomuos_lab -e "A
 ```
 
 After applying the SQL, **rebuild the image** (which regenerates the Prisma client with the new schema) and **restart the pod**. Both steps are required — the running pod has the old client.
+
+**Recommended order** (proven during the strawhats migration):
+
+1. Push schema + code changes to GitHub (kicks off CI build, ~2 min)
+2. Wait for CI green (`gh run list --limit 1`)
+3. Apply migration SQL via the scp + kubectl pipe above
+4. Verify with a SELECT or SHOW TABLES on the new schema
+5. `kubectl rollout restart deployment/gomuos-lab -n gomuos && kubectl rollout status deployment/gomuos-lab -n gomuos --timeout=180s`
+6. Smoke-test a new endpoint with `curl https://lab.gomuos.com/api/...`
+
+**For NOT NULL columns on existing tables**, follow the safe-add pattern (see `prisma/migrations/001_workspaces_and_projects.sql` for a full example):
+```sql
+ALTER TABLE x ADD COLUMN newcol INT NULL;        -- 1. add as NULL
+UPDATE x SET newcol = ... WHERE newcol IS NULL;  -- 2. backfill
+ALTER TABLE x MODIFY COLUMN newcol INT NOT NULL; -- 3. promote
+ALTER TABLE x ADD CONSTRAINT ... FOREIGN KEY ... ;  -- 4. FK last
+```
+This minimizes the risk-window where the OLD pod could insert a row and fail the new constraint.
 
 When introducing a new required column on an existing table:
 1. Add the column as `NULL` first

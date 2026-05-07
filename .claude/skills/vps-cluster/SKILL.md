@@ -71,6 +71,8 @@ Bootstrap once: `ssh root@46.224.215.213 "kubectl apply -n argocd -f -" < argocd
 - **Wildcard**: `*.gomuos.com → 46.224.215.213` is configured. Any new subdomain works automatically — no manual DNS record needed when adding a new app.
 - **Specific records win** over wildcard, so existing `lab.gomuos.com`, `kidsapp.gomuos.com`, `testapp.gomuos.com`, `indfoedsret.gomuos.com` keep their explicit A records (also pointing at `46.224.215.213`).
 - **Apex `gomuos.com`** itself points at simply.com hosting (`93.191.156.57`). Don't add k3s apps at the apex — use a subdomain.
+- **simply.com UI gotcha**: when you add a new A record in their control panel, the value field is often pre-filled with their default hosting IP (`93.191.156.57` aka `linux192.unoeuro.com`). If you click save without overwriting it, the record points at simply.com's parking page instead of the cluster. Always verify the value field reads `46.224.215.213` before saving. (We hit this when adding the wildcard.)
+- **Legacy multi-value records** exist on `ordrupspizza.gomuos.com` and `www.gomuos.com` — both have two A values: `46.224.215.213` (cluster) AND `93.191.156.57` (simply hosting). They round-robin and resolve unpredictably. Production traffic uses `ordrupspizza.dk` so it doesn't bite, but worth cleaning up if you touch those records.
 - **Check status**:
   ```bash
   ssh root@46.224.215.213 "kubectl get certificate -n gomuos && kubectl get challenges -n gomuos"
