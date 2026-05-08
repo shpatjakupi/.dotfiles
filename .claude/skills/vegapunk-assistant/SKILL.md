@@ -119,8 +119,27 @@ Read `references/inspiration.md` for full details on reclaw's architecture and f
 Vegapunk is inspired by Peter's reclaw bot (`github.com/peterstorm/reclaw`) — a mature
 Telegram-based AI assistant with scheduled skills, deep research, reminders, and more.
 
+## Agent Fleet Hosted Here
+
+Vegapunk's `src/infra/cron.ts` is the runtime for **four independent agent teams**:
+gomuos, strawhats, kidsapp, and revolutionaries. Each has its own skill folder and
+its own workspace in the lab dashboard.
+
+**For any question about which agents exist, when they run, or how tickets flow
+between teams, read `agent-fleet` skill first** — it's the master index. Each
+team's own skill (`gomuos-team`, `strawhat-team`, `kidsapp-team`, `revolutionary-team`)
+has the deep dive.
+
+Vegapunk-specific responsibilities for the fleet:
+- `cron.ts` registers every job with its workspace via `workspaceForJob(name)` (prefix-based routing).
+- Daily/weekly hunters/scouts align to their declared UTC time via `parseCron` + `msUntilNextFire`.
+- The ticket-dispatcher polls every 3 minutes and spawns Claude Code subprocesses
+  with `cwd` chosen by `getCwdForTicket` (different repo per agent prefix).
+- All agent jobs call back to the lab via `lab-client.ts` (`updateJobStatus`, `createTicket`).
+
 ## When to Read References
 
 - **Architecture, tech stack, VPS setup**: Read `references/architecture.md`
 - **Reclaw features and inspiration for new features**: Read `references/inspiration.md`
 - **Roadmap and planned features**: Read `references/roadmap.md`
+- **Agent fleet (4 teams) overview**: Read the `agent-fleet` skill (separate skill in same dotfiles)
