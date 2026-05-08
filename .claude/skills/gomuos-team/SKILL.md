@@ -211,6 +211,10 @@ async function runAgent() {
 | `gomuos-wolt-specialist` | Daily 12:00 |
 | `gomuos-menu-specialist` | Weekly (Monday) |
 
+## Model
+
+All GomuOS agents run on **`claude-opus-4-7`** — pinned explicitly in `vegapunk/src/infra/cron.ts` on every job (hunters, manager, and the dispatcher that spawns reactive devs/validators). Same tier as Straw Hats, so the whole fleet is consistent.
+
 ## Project Goals
 
 Each project repo can have a `GOALS.md` in its root. The manager reads this to understand current priorities:

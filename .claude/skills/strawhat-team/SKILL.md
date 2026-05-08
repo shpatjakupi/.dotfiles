@@ -184,6 +184,10 @@ The dispatcher chooses `cwd` based on agent name:
 - `strawhat-product-intake`, `strawhat-architect`, `strawhat-manager` → `/home/vegapunk/vegapunk` (no specific repo)
 - `strawhat-devops`, `strawhat-backend-developer`, `strawhat-frontend-developer`, `strawhat-qa-tester` → `/home/vegapunk/projects/<project.slug>` (looked up via the ticket's `projectId`)
 
+## Model
+
+All Straw Hats agents run on **`claude-opus-4-7`** — pinned explicitly in `vegapunk/src/infra/cron.ts` both on the `strawhat-manager` cron job and on the dispatcher (`runAgentForTicket`). This matches the model used by gomuos hunters and managers, so the whole agent fleet is on the same tier.
+
 ## Goals File
 
 Active priorities live in `~/.claude/skills/strawhat-team/GOALS.md`. The manager reads this when deciding what to work on next.
