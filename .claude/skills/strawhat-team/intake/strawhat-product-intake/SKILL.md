@@ -70,12 +70,14 @@ Any tech-stack or scale-related questions you couldn't resolve.
 Then PATCH:
 ```
 PATCH /api/strawhats/projects/{id}
-{ "spec": "<the markdown above>", "status": "spec" }
+{ "spec": "<the markdown above>", "status": "analyzing" }
 ```
+
+Status `analyzing` triggers `strawhat-realizer` to do the deep-analysis pass (sourcing, compliance, competitors, revenue, 12-week plan). The architect only runs later, after the human has reviewed the realization plan and chosen to proceed with a SaaS build.
 
 And mark your ticket done:
 ```
-PATCH /api/tickets/{ticketId} { "status": "done", "executionLog": "Spec written, project advanced to status='spec'." }
+PATCH /api/tickets/{ticketId} { "status": "done", "executionLog": "Spec written, project advanced to status='analyzing'." }
 ```
 
 ## Question hygiene
@@ -105,4 +107,4 @@ Bad questions:
 - Don't pick the tech stack — that's strawhat-architect's job
 - Don't post more than 5 questions in total without a really good reason
 - Don't write code or architecture
-- Don't change project.status to anything other than 'spec'
+- Don't change project.status to anything other than 'analyzing' (or back to 'intake' if asking more questions)
