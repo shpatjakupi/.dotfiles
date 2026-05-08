@@ -13,20 +13,26 @@ This is **separate from the GomuOS team** — GomuOS maintains the existing food
 
 ```
 strawhat-team/
-├── captain/      ← orchestrator, routes work between phases
+├── captain/       ← orchestrator, routes work between phases
 │   └── strawhat-manager
-├── intake/       ← reads the wish, asks clarifying questions, writes the spec
+├── intake/        ← reads the wish, asks clarifying questions, writes the spec
 │   └── strawhat-product-intake
-├── design/       ← chooses tech stack, designs system, writes ARCHITECTURE.md
+├── realizer/      ← deep analysis BEFORE build (for ANY idea type)
+│   ├── strawhat-realizer            ← orchestrator, writes the realization plan
+│   ├── strawhat-sourcing-scout      ← reference framework: suppliers, MOQ, landed cost
+│   └── strawhat-compliance-scout    ← reference framework: CE, EN-71, REACH, GDPR, moms
+├── design/        ← chooses tech stack, designs system (only for SaaS-class)
 │   └── strawhat-architect
-├── devs/         ← implementers
+├── devs/          ← implementers (only for SaaS-class)
 │   ├── strawhat-backend-developer    (Spring Boot 3.1, Java 17, MySQL)
 │   └── strawhat-frontend-developer   (Next.js 14, TypeScript, Mantine UI 7)
-├── ops/          ← repo creation, Docker, k3s, ArgoCD
+├── ops/           ← repo creation, Docker, k3s, ArgoCD
 │   └── strawhat-devops
-└── qa/           ← Playwright E2E + code review
+└── qa/            ← Playwright E2E + code review
     └── strawhat-qa-tester
 ```
+
+The team now handles **any idea type** — SaaS, physical product, hardware, service, content, or hybrid. Strawhat-realizer identifies the type during the analysis phase. SaaS-class projects continue through architect/devops/devs/qa. Non-SaaS projects stop at `analyzed` status — the realization plan is the deliverable, the human executes manually.
 
 ## Project Lifecycle
 
@@ -37,8 +43,17 @@ status='intake' — Project created, auto-ticket → strawhat-product-intake
    ↓ (intake reads wish, posts clarifying questions as project-comments)
    ↓ (human answers via /strawhats/[id])
    ↓ (intake refines until it has enough → writes spec, PATCH project)
-status='spec'
-   ↓ (manager creates ticket → strawhat-architect)
+status='analyzing'
+   ↓ (manager creates ticket → strawhat-realizer)
+   ↓ (realizer identifies project type, reads sourcing/compliance references when relevant,
+   ↓  researches competitors / buyers / pricing / distribution / 12-week plan,
+   ↓  PATCHes project with realizationPlan + projectType)
+status='analyzed'  ← human reviews realization plan in /strawhats/[id]
+   ↓ Human chooses one path:
+   ↓   ├── Archive (status='archived')
+   ↓   ├── Build SaaS (status='design')  ← only available for saas / hybrid project types
+   ↓   └── Mark as manually realized (status='deployed', no build pipeline)
+   ↓ (manager creates ticket → strawhat-architect, only on 'design')
    ↓ (architect designs system, picks tech, writes architecture, PATCH project)
 status='design'
    ↓ (manager creates ticket → strawhat-devops)
