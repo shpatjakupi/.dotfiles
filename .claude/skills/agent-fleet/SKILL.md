@@ -68,13 +68,33 @@ fyringstidspunkt; de fleste jobs aligner til præcis UTC-tid.
 
 | Kategori | Mønster | Eksempler |
 |---|---|---|
-| Hot jobs | `setInterval` fra opstart, ingen alignment | health-monitor (15m), ticket-dispatcher (3m), 3 managers |
-| Daglige jobs | Startup-stagger + alignment til næste UTC-tid + 24h interval | gomuos-checkout-specialist (08 UTC), kidsapp-bimiboo-scout (13 UTC), … |
-| Ugentlige jobs | Samme som daglige, alignment til ugedag+tid + 7d interval | gomuos-menu-specialist (`0 8 * * 1`) |
-| Sekventielle pipelines | Aligner til fast tid, ingen startup-run | revolutionaries-pipeline (06:30 UTC, kører 10 agenter sekventielt) |
+| Hot jobs | `setInterval` fra opstart med per-job startup-offset (`HOT_JOB_STARTUP_OFFSET_MS`) | health-monitor (15m), ticket-dispatcher (3m), 3 managers |
+| Daglige jobs | Startup-stagger + alignment til næste UTC-tid + 24h interval | spredt over hele døgnet, mindst 2h mellem hver |
+| Ugentlige jobs | Samme som daglige, alignment til ugedag+tid + 7d interval | gomuos-menu-specialist |
+| Sekventielle pipelines | Aligner til fast tid, ingen startup-run | revolutionaries-pipeline (~50min, kører 10 agenter sekventielt med 30s sleep) |
+
+**Designprincipper når du tilføjer/justerer schedules:**
+- Daglige jobs spredes over hele 24h-cyklen så vi undgår parallelle Opus-subprocesser
+  og spreder API-load. Mindst 2h mellem to fixed-time jobs.
+- To hot jobs med samme `intervalMs` MÅ ikke fyre på samme offset — tilføj en entry
+  i `HOT_JOB_STARTUP_OFFSET_MS` (fx `kidsapp-manager: +1h` så 2h-cyklus rammer T+1h
+  i stedet for samtidig med `gomuos-manager`).
+- Pipelines der spawner flere agenter skal have inter-agent sleep (revolutionaries
+  bruger 30s) for at undgå Anthropic rate-limit per-minute window.
 
 For nøjagtige tidspunkter, læs `cron.ts` direkte — alt er deklareret i `jobs`-arrayet
 nederst i `createCronScheduler`.
+
+## Dispatcher-failure-modus
+
+Når en agent fejler (rate-limit, exception, timeout, dirty repo, unpushed code)
+reverter dispatcheren ticket'en til **`pending`** — ikke til `approved`. Det er med
+vilje: approved tickets bliver picked up igen 3 min senere, hvilket vil hammre en
+rate-limited API kontinuerligt. Med pending falder den ud af queuen, brugeren får
+én Telegram-alert, og kan klikke "approve" igen i lab UI'et når årsagen er løst.
+
+Dette gælder alle 5 revert-sites i `cron.ts`: pre-flight clean-check, agent
+execution failure, post-flight push-check, og begge throw-catches i dispatcher-loopet.
 
 ## Lab API & workspaces
 
@@ -157,3 +177,5 @@ Sync-skills installerer dem til VPS i to former:
 | Agent dukker op på forkert team-side | DB: `SELECT name, workspaceId FROM lab_jobs` |
 | Tickets fra agent havner i forkert workspace | Agentens skill — sender den `workspace: "<slug>"` med? |
 | Lab-side viser intet | Tjek `getWorkspaceIdBySlug` cache + at workspace-rækken eksisterer |
+| Ticket sat til pending efter agent-run | Dispatcheren reverter til pending ved fejl (rate-limit, dirty repo, unpushed code). Tjek Telegram for alert + `journalctl` for agent-output. Re-approve manuelt når årsagen er løst. |
+| Vegapunk har gammel kode efter push | Tjek GitHub Actions run for `deploy.yml`. Hvis fejlet, kommer der Telegram-alert med link til run. |
