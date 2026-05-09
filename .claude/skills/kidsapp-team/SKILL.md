@@ -1,17 +1,18 @@
 ---
 name: kidsapp-team
 description: >
-  Full context for KidsApp — a Unity 6.3 WebGL educational app for children 1-4 år, deployed
-  to kidsapp.gomuos.com via GameCI → GHCR → ArgoCD → k3s. Covers the project itself (repo
-  structure, code conventions, WebGL constraints, build/deploy flow, mini-game checklist) AND
-  the agent team that maintains it (manager, scouts, devs, code-reviewer, infra). Sound-only,
-  no language/text, demo-quality first then design pass after ~10 mini-games. Use this skill
-  for anything KidsApp-related. For deep deploy infrastructure prefer the kidsapp-infra skill.
+  Full context for KidsApp — a Unity 6.3 educational app for children 1-4 år, shipped to
+  Google Play (Android) and the App Store (iOS) via GameCI. Covers the project itself (repo
+  structure, code conventions, mobile build constraints, build/deploy flow, mini-game
+  checklist) AND the agent team that maintains it (manager, scouts, devs, code-reviewer,
+  infra). Sound-only, no language/text, demo-quality first then design pass after
+  ~10 mini-games. Use this skill for anything KidsApp-related. For deep deploy infrastructure
+  prefer the kidsapp-infra skill.
 ---
 
 # KidsApp
 
-A Unity 6.3 WebGL app containing many small mini-games for children aged 1-4. Inspired by Bimi Boo's ecosystem of theme-apps, but consolidated into a single demo app. Sound-only, no language, no readable text — the app must be understandable globally without translation.
+A Unity 6.3 mobile app containing many small mini-games for children aged 1-4, shipped to **Google Play (Android)** and the **App Store (iOS)**. Inspired by Bimi Boo's ecosystem of theme-apps, but consolidated into a single demo app. Sound-only, no language, no readable text — the app must be understandable globally without translation.
 
 A team of specialized Claude Code agents researches ideas, builds mini-games, and reviews code. All agent actions require human approval via lab tickets at `lab.gomuos.com/kidsapp`.
 
@@ -20,13 +21,13 @@ A team of specialized Claude Code agents researches ideas, builds mini-games, an
 | | |
 |--|--|
 | Engine | Unity 6.3 LTS (`6000.3.0f1`) |
-| Build target | WebGL (initially); Android + iOS later |
+| Production targets | Android (Google Play) + iOS (App Store) |
+| Dev preview target | WebGL at `https://kidsapp.gomuos.com` (test channel — every push lands here in ~13 min) |
 | Repo | `https://github.com/shpatjakupi/kids-app` (private) |
 | Local path | `C:\Users\shpat\Desktop\projects\kids-app` |
-| VPS path | `/home/vegapunk/projects/kids-app` |
-| Live URL | `https://kidsapp.gomuos.com` |
-| Build pipeline | GitHub Actions (GameCI) → `ghcr.io/shpatjakupi/kids-app:latest` |
-| k3s manifests | `infra-gitops/apps/kidsapp/` → ArgoCD app `kidsapp` |
+| VPS path | `/home/vegapunk/projects/kids-app` (CI checkout + WebGL preview host) |
+| Distribution (prod) | Google Play Console + App Store Connect (TestFlight for iOS beta) |
+| Build pipeline | GitHub Actions (GameCI): `webgl.yml` (preview), `android.yml` (.aab), `ios.yml` (.ipa) |
 | Lab workspace | `kidsapp` (`workspaceId: 3`) — `https://lab.gomuos.com/kidsapp` |
 
 ## Vision and Constraints
@@ -64,9 +65,12 @@ kids-app/
 │   ├── EditorBuildSettings.asset  # scene list (every shipping scene MUST be enabled here)
 │   └── McpUnitySettings.json      # WebSocket port for MCP (Editor only)
 ├── docker/
-│   ├── Dockerfile                 # nginx + WebGL build artifact
+│   ├── Dockerfile                 # nginx + WebGL build — for kidsapp.gomuos.com preview
 │   └── nginx.conf                 # COOP/COEP for SharedArrayBuffer + br/gz/wasm MIME
-├── .github/workflows/build.yml    # GameCI WebGL build + GHCR docker push
+├── .github/workflows/
+│   ├── webgl.yml                  # GameCI WebGL build → GHCR → ArgoCD (dev preview)
+│   ├── android.yml                # GameCI Android build → signed .aab → Play Console upload
+│   └── ios.yml                    # GameCI iOS build → .ipa → App Store Connect / TestFlight
 └── README.md
 ```
 
@@ -102,41 +106,70 @@ For `.cs` files use `MonoImporter:` instead of `DefaultImporter:` (see existing 
 - **ScriptableObjects** for any configuration data (level definitions, audio clip refs, character stats)
 - **UI Toolkit** (UXML + USS) for UI — not legacy uGUI Canvas. Smaller WebGL bundle, modern direction.
 
-## WebGL Hard Constraints
+## Build Constraints
 
-These break the build or crash at runtime — never use them in runtime code:
+Code must satisfy **all three** targets (WebGL preview + Android + iOS prod):
 
-- `System.Threading.Thread`, `Task.Run`, `ThreadPool` (single-threaded — `async/await` is fine)
-- `System.IO.File` for file system access (use `PlayerPrefs` for tiny state)
-- Reflection that emits IL (`Expression.Compile`, `DynamicMethod`)
-- `using UnityEditor;` outside `#if UNITY_EDITOR ... #endif` blocks (does not exist in builds)
-
-WebGL build size matters — every MB adds load time. Target < 20 MB compressed for v1. Audio: import as `DecompressOnLoad`.
+- **No threading / `Task.Run` / `ThreadPool`** — WebGL is single-threaded.
+  `async/await` is fine.
+- **No `System.IO.File`** for runtime persistence — WebGL has no real file
+  system. Use `PlayerPrefs` for tiny state across all platforms.
+- **No reflection that emits IL** (`Expression.Compile`, `DynamicMethod`) —
+  WebGL strips IL emit, and iOS IL2CPP throws `PlatformNotSupportedException`
+  on it. Use `[Preserve]` and avoid runtime code-gen.
+- **`using UnityEditor;`** outside `#if UNITY_EDITOR ... #endif` blocks
+  breaks every player build. Always guard editor-only code.
+- **Touch input only** — design for one-finger taps. Mouse events still
+  work in editor and WebGL desktop testing.
+- **Build size matters everywhere** — WebGL target < 20 MB compressed, APK
+  base < 150 MB (Play warning), IPA cellular < 200 MB. Audio: `Vorbis`
+  compressed for mobile, `DecompressOnLoad` for WebGL.
+- **Min SDK / iOS target**: Android `minSdkVersion 24` (Android 7.0+),
+  iOS deployment target `13.0+`.
+- **Background suspension** — iOS aggressively suspends; pause audio in
+  `OnApplicationPause(true)` and resume on `false`.
 
 ## Build & Deploy Flow
+
+There are two flows: a **fast dev preview** (WebGL) that fires on every push
+and is the daily test loop, and **production release** to the mobile stores
+which is invoked deliberately.
+
+### Dev preview (every push to `main`)
 
 ```
 edit C# / scene / prefab files
    ↓ git push origin main
 GitHub Actions
-   ├─ game-ci/unity-builder@v4 → WebGL output (~10 min, cached Library/)
-   └─ docker build & push → ghcr.io/shpatjakupi/kids-app:latest
+   ├─ webgl.yml → GameCI WebGL build (~10 min)
+   │              → docker build & push → ghcr.io/shpatjakupi/kids-app:latest
    ↓
 ArgoCD auto-syncs apps/kidsapp/deployment.yaml (~3 min)
    ↓
-kubectl rollout restart deployment/kidsapp -n gomuos  (forces :latest pull)
+kubectl rollout restart deployment/kidsapp -n gomuos   (forces :latest pull)
    ↓
-https://kidsapp.gomuos.com
+https://kidsapp.gomuos.com  ← open on phone for touch test
 ```
 
-After pushing, you can verify:
+Verify after pushing:
 ```bash
-gh run list --workflow=build.yml --limit 1
+gh run list --workflow=webgl.yml --limit 1
 ssh root@46.224.215.213 "kubectl rollout status deployment/kidsapp -n gomuos"
 curl -sI https://kidsapp.gomuos.com | head -5
 ```
 
-If GameCI fails: read `gh run view <id> --log-failed`. Most failures are missing `.meta` files or scenes not in `EditorBuildSettings.asset`. See `kidsapp-infra` skill for full troubleshooting.
+### Production release (manual, when ready)
+
+```
+gh workflow run android.yml   # → game-ci → signed .aab → fastlane supply → Play Internal Testing
+gh workflow run ios.yml       # → game-ci → fastlane match+gym → pilot → TestFlight
+   ↓
+Smoke-test on Play Internal Testing + TestFlight
+   ↓
+Promote: Play Closed/Open → Production, App Store review submission
+```
+
+If any GameCI run fails: most failures are missing `.meta` files, scenes not in `EditorBuildSettings.asset`, or signing-credential drift (Android keystore secret, iOS provisioning profile expiry). See `kidsapp-infra` skill for full troubleshooting.
 
 ## Adding a New Mini-Game (typical flow)
 
@@ -147,17 +180,21 @@ If GameCI fails: read `gh run view <id> --log-failed`. Most failures are missing
 5. **Audio**: place royalty-free clips in `Assets/Audio/<MiniGame>/`. Set import type to `DecompressOnLoad` in the `.meta`.
 6. **Universal back button**: every mini-game scene must include the standard back button (returns to hub). Same prefab everywhere — same position.
 7. **Stjerne-belønning**: on completion, trigger the shared reward animation/sound (lives in `Assets/Prefabs/Reward.prefab` or similar — check current state).
-8. **Push**: GameCI builds, ArgoCD deploys, verify on `kidsapp.gomuos.com`.
+8. **Push**: `webgl.yml` runs automatically; ~13 min later the new mini-game is live at `kidsapp.gomuos.com`. Open it on your phone for touch test.
 9. **Code review**: `kidsapp-code-reviewer` reviews automatically when ticket is marked done.
+10. **Release** (when batch of mini-games is ready): manually trigger `android.yml` + `ios.yml` to ship to Play Internal Testing / TestFlight, then promote to production.
 
 ## Common Gotchas
 
 - **Missing `.meta` file** → Unity ignores the asset, references break silently. Always create both.
 - **Scene not in `EditorBuildSettings.asset`** → `SceneManager.LoadScene("Foo")` fails at runtime.
-- **`replicas: 0` in k3s deployment** → has happened before via linter/auto-edit. Check `apps/kidsapp/deployment.yaml` if pod count is 0.
-- **`:latest` image tag stale on pod** → `kubectl rollout restart deployment/kidsapp -n gomuos` to force pull.
+- **WebGL preview shows old build** → ArgoCD synced the manifest but the `:latest` tag didn't change. `kubectl rollout restart deployment/kidsapp -n gomuos` to force the pull.
+- **`replicas: 0` in k3s deployment** → has happened before via linter/auto-edit on `apps/kidsapp/deployment.yaml`. ArgoCD will keep scaling the pod down until you fix it back to `1`.
+- **Android keystore drift** → if the `.aab` upload to Play fails with "package already uses a different signing key", the keystore secret in GitHub Actions has rotated. Rebuild from the original keystore — never re-sign with a new one.
+- **iOS provisioning profile expiry** → `fastlane match` regenerates; check `kidsapp-infra` for the renewal flow.
+- **`bundleVersion` / `bundleVersionCode` not bumped** → both stores reject duplicate version numbers. CI auto-increments via the build number; manual pushes must bump it.
 - **mcp-unity package** in `Packages/com.gametery.mcp-unity/` is for the local Editor only (Editor-bound assemblies). Do not import its types from runtime code.
-- **Bimi Boo "splash screen"** — the Unity Personal "Made with Unity" 4-second splash shows at app start. Cannot be removed without Pro license. Acceptable for now.
+- **"Made with Unity" splash** — Unity Personal's 4-second splash shows at app start. Cannot be removed without Pro license. Acceptable for now.
 
 ---
 
