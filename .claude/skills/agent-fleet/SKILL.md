@@ -85,6 +85,45 @@ fyringstidspunkt; de fleste jobs aligner til præcis UTC-tid.
 For nøjagtige tidspunkter, læs `cron.ts` direkte — alt er deklareret i `jobs`-arrayet
 nederst i `createCronScheduler`.
 
+## Agent-controls (sleep/wake/run-now/model/cost-cap/notify)
+
+Hver agent har et sæt human-styrede kontroller der lever i lab DB og pulles
+ind i vegapunk via en hot-reload-loop hvert 60. sekund. Det betyder:
+**ingen kode-deploy nødvendig** for at pause en agent, skifte dens model, sætte
+en dagskost-cap, eller mute dens fejl-alerts.
+
+Hvor styres det:
+- **Per-agent**: klik en række på `/<team>/agents` → udvid kontrol-panelet
+  (sleep/wake, run-now, model, effort, cost-cap, notify, last-runs)
+- **Per-team**: bjælken øverst på `/<team>/agents` (pause hele workspace'et)
+- **Globalt**: `/settings` — vacation mode (pauser ALT) + concurrency limit
+  (max parallelle Claude-subprocesser) + "Genstart vegapunk"-knap
+
+Hvad gates'er hvad i vegapunk-cron'en:
+1. Vacation mode → skip alle jobs
+2. Workspace.pausedUntil → skip jobs i det workspace
+3. Job.pausedUntil → skip én agent
+4. Job.enabled=false → skip én agent
+5. dailyCostCapUsd ≤ today's SUM(JobRun.costUsd) → skip + alert
+6. Concurrency-semafor (default 2) køer Claude-kald
+
+Run-now bypasser sleep + workspace-pause men IKKE vacation/cost-cap.
+Skipped runs landes som `JobRun{status:"skipped"}` så de optræder i UI'ens
+last-runs-strip med et ⊘-ikon.
+
+Cost-cap-data: hentes fra `/api/jobs/cost-summary` (SQL sum af `JobRun.costUsd`
+for indeværende UTC-dag). Source of truth — overlever vegapunk-restarts.
+
+Schedule-ændringer: `Job.schedule` opdateres straks i DB, men
+`setInterval`-handles i vegapunk genskabes ikke ved hot-reload. Bruger klikker
+"Genstart vegapunk" på `/settings` → flag sættes → vegapunk's hot-reload tjekker
+flaget mod `BOOTED_AT` og kalder `systemctl restart vegapunk` hvis flaget er
+nyere. Loop-safe: den genstartede proces ser samme flag men har et nyere
+BOOTED_AT.
+
+Detaljer på schema/API: `gomuos-lab` skill. Detaljer på cron-implementering:
+`vegapunk-assistant` skill.
+
 ## Dispatcher-failure-modus
 
 Når en agent fejler (rate-limit, exception, timeout, dirty repo, unpushed code)

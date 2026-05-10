@@ -37,9 +37,10 @@ Strawhats additionally has a `Project` table (one per app/wish) that owns multip
 ```prisma
 model Workspace {
   id          Int       @id @default(autoincrement())
-  slug        String    @unique // 'gomuos' | 'strawhats'
+  slug        String    @unique // 'gomuos' | 'strawhats' | 'kidsapp' | 'revolutionaries'
   name        String
   description String?
+  pausedUntil DateTime? // team-level pause (migration 005); null = active
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   tickets     Ticket[]
@@ -49,21 +50,56 @@ model Workspace {
 }
 
 model Job {
-  id          Int        @id @default(autoincrement())
-  workspaceId Int        // → Workspace
-  workspace   Workspace
-  name        String     @unique
-  description String
-  schedule    String
-  enabled     Boolean    @default(true)
-  lastRunAt   DateTime?
-  lastStatus  String?    // idle | running | success | error
-  lastOutput  String?    @db.LongText
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  tickets     Ticket[]
+  id                Int        @id @default(autoincrement())
+  workspaceId       Int        // → Workspace
+  workspace         Workspace
+  name              String     @unique
+  description       String
+  schedule          String
+  enabled           Boolean    @default(true)
+  // Per-agent controls (migration 005). All driven by vegapunk's hot-reload
+  // every 60s — no code changes needed when these flip.
+  model             String?    // null = default. claude-opus-4-7 | claude-sonnet-4-6 | claude-haiku-4-5-20251001
+  reasoningEffort   String?    // low | medium | high (passed as --effort to Claude CLI)
+  notifyOnFailure   Boolean    @default(true)
+  dailyCostCapUsd   Decimal?   @db.Decimal(10, 2) // auto-skip when today's run-cost ≥ cap
+  pausedUntil       DateTime?  // sleep until timestamp; "9999-12-31" sentinel = sleep until manual wake
+  runNowRequestedAt DateTime?  // run-now poller fires + clears
+  lastRunAt         DateTime?
+  lastStatus        String?    // idle | running | success | error | skipped
+  lastOutput        String?    @db.LongText
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  tickets           Ticket[]
+  runs              JobRun[]
   @@index([workspaceId])
   @@map("lab_jobs")
+}
+
+// Run-history per job (migration 005). One row per execution. UI shows
+// "last 5 runs" inline on the agent control panel; SQL sum drives the cost cap.
+model JobRun {
+  id         Int       @id @default(autoincrement())
+  jobId      Int       // → Job (cascade delete)
+  status     String    // running | success | error | skipped
+  output     String?   @db.Text   // truncated to ~60KB
+  costUsd    Decimal?  @db.Decimal(10, 4)
+  model      String?   // effective model used (post-override)
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  @@index([jobId, startedAt])
+  @@map("lab_job_runs")
+}
+
+// Global k/v settings (migration 005). Allowed keys:
+//   concurrency_limit              — max parallel Claude subprocesses (default "2")
+//   vacation_mode_until            — ISO timestamp; pauses ALL agents in ALL teams
+//   vegapunk_restart_requested_at  — vegapunk hot-reload triggers `systemctl restart` if newer than its BOOTED_AT
+model Setting {
+  key       String   @id @map("key")
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+  @@map("lab_settings")
 }
 
 model Ticket {
@@ -194,8 +230,16 @@ All write endpoints require `Authorization: Bearer $LAB_API_KEY`.
 | `GET` | `/api/tickets/:id/poll` | Returns `{ id, status }` — used by Vegapunk to wait for approval |
 | `GET` | `/api/tickets/:id/comments` | Fetch comments ordered by `createdAt asc` |
 | `POST` | `/api/tickets/:id/comments` | Create comment. Body: `{ author, body, askAgent? }`. If `askAgent: true`, sets ticket status to `needs_response` |
-| `GET` | `/api/jobs` | List all jobs. `?workspace=` filter. |
-| `POST` | `/api/jobs` | Upsert job. Create: `{ name, description, schedule, workspace? }`. Update: `{ name, lastStatus, lastOutput? }`. `workspace` defaults to `"gomuos"`. |
+| `GET` | `/api/jobs` | List all jobs. `?workspace=` filter. Returns full row including controls. |
+| `POST` | `/api/jobs` | Upsert job. Create: `{ name, description, schedule, workspace? }`. Update: `{ name, lastStatus, lastOutput?, costUsd?, model? }`. Auto-appends a `JobRun` row when `lastStatus` is terminal (success/error/skipped). |
+| `PATCH` | `/api/jobs/:name` | Update controls. Body keys: `schedule`, `enabled`, `model` (or null), `reasoningEffort` (or null), `notifyOnFailure`, `dailyCostCapUsd` (or null), `pausedUntil` (ISO/`"forever"`/null), `runNowRequestedAt` (null only — clears). Auth: cookie OR API key. |
+| `POST` | `/api/jobs/:name/run-now` | Sets `runNowRequestedAt = now()`. Vegapunk's poller fires + clears within 30s. |
+| `GET` | `/api/jobs/:name/runs?limit=10` | Last N JobRun rows for the agent control panel. |
+| `GET` | `/api/jobs/cost-summary` | Returns `[{name, dailyUsd}]` — today's UTC sum of `JobRun.costUsd` per job. Source of truth for the daily cost cap. |
+| `GET` | `/api/workspaces/:slug` | Workspace row including `pausedUntil`. |
+| `PATCH` | `/api/workspaces/:slug` | Body: `{ pausedUntil: ISO\|"forever"\|null }`. Pauses every job in the workspace. |
+| `GET` | `/api/settings` | Returns flat `Record<key, value>` of global settings. |
+| `PATCH` | `/api/settings` | Body: `{ key, value: string\|null }`. Allowed keys above. Empty/null deletes the row. |
 
 ### Strawhats-only
 
@@ -232,30 +276,54 @@ src/
 ├── app/
 │   ├── login/                 page.tsx
 │   ├── dashboard/             page.tsx
-│   ├── tickets/
-│   │   ├── page.tsx           list with status tabs (gomuos workspace)
-│   │   └── [id]/page.tsx      detail with executions + CommentThread
-│   ├── hunters/               page.tsx (gomuos)
-│   ├── jobs/                  page.tsx (gomuos)
-│   ├── strawhats/
-│   │   ├── page.tsx           project list with status tabs + "Nyt ønske" button
-│   │   └── [id]/page.tsx      detail: wish, spec, architecture, intake comments, tickets
+│   ├── tickets/, hunters/, jobs/                            (gomuos)
+│   ├── strawhats/, strawhats/[id]/, strawhats/agents/        (strawhats)
+│   ├── kidsapp/, kidsapp/agents/                             (kidsapp)
+│   ├── revolutionaries/, revolutionaries/agents/             (revolutionaries)
+│   ├── settings/              page.tsx — vacation mode, concurrency, restart-vegapunk
 │   └── api/                   (see routes above)
 ├── components/
-│   ├── Sidebar.tsx            grouped nav (GomuOS / Straw Hats)
+│   ├── Sidebar.tsx            grouped nav (GomuOS / Straw Hats / KidsApp / Revolutionaries / Globalt)
 │   ├── StatusBadge.tsx        SeverityBadge | StatusBadge | JobStatusBadge
-│   ├── ProjectStatusBadge.tsx ProjectStatusBadge | ProjectProgress (5-step bar)
+│   ├── ProjectStatusBadge.tsx
 │   ├── TicketActions.tsx      Approve/Reject buttons (only on pending)
-│   ├── CommentThread.tsx      ticket comment Q&A
-│   ├── ProjectCommentThread.tsx  project intake Q&A
-│   ├── NewWishForm.tsx        client form on /strawhats
-│   └── HunterCard.tsx, HunterFeedbackForm.tsx
+│   ├── CommentThread.tsx, ProjectCommentThread.tsx
+│   ├── NewWishForm.tsx
+│   ├── ScheduleEditor.tsx     inline cron picker on each job row
+│   ├── TeamJobs.tsx           agent list rendered on every <team>/agents page
+│   ├── JobRow.tsx             single row — click to expand into AgentControls
+│   ├── AgentControls.tsx      sleep/wake, run-now, model+effort, cost cap, notify, last-runs
+│   ├── TeamPauseControl.tsx   "pause hele teamet" bar above the table
+│   ├── SettingsForm.tsx       form on /settings
+│   ├── Tooltip.tsx            (i)-hover used across all controls
+│   └── HunterCard.tsx, HunterFeedbackForm.tsx, AgentFeedbackForm.tsx
 └── lib/
     ├── prisma.ts
     ├── auth.ts
     ├── workspace.ts           getWorkspaceIdBySlug() with cache
     └── slugify.ts             slug-safe (handles æøå)
 ```
+
+## Agent Controls (migration 005)
+
+Every `/<team>/agents` page renders `TeamJobs` → which is a 4-column table of `JobRow` components. Each row has a chevron; clicking expands a panel containing the full `AgentControls`:
+
+| Control | Field on Job | UI |
+|---------|--------------|-----|
+| Sleep / wake | `pausedUntil` | toggle button — "forever" sentinel or `null` |
+| Run now | `runNowRequestedAt` | button — POST `/run-now`; vegapunk poll clears |
+| Model | `model` | dropdown — claude-opus-4-7 / sonnet-4-6 / haiku-4-5 / null |
+| Reasoning effort | `reasoningEffort` | dropdown — low/medium/high/null |
+| Daily cost cap | `dailyCostCapUsd` | number input — auto-skips when today's UTC cost ≥ cap |
+| Notify on failure | `notifyOnFailure` | checkbox — silences Telegram failure alerts only |
+| Last 5 runs | `JobRun` rows | inline strip of ✓ / ✗ / ⊘ icons; click to see output + cost |
+
+`TeamPauseControl` sits above the table and toggles `Workspace.pausedUntil`. Global `vacation_mode_until` and `concurrency_limit` live on `/settings`.
+
+The dispatcher / hot-reload semantics live in vegapunk (see `vegapunk-assistant` skill). What lab guarantees:
+- All control mutations are durable (DB-backed).
+- `JobRun` history is a single source of truth — survives vegapunk restarts.
+- `cost-summary` endpoint is what vegapunk uses to enforce the cap; in-memory cost in vegapunk is just an optimistic forward-projection between hot-reloads.
 
 ## Workspace helper
 

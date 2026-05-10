@@ -79,6 +79,54 @@ prepended as system context. This sets tone (concise, Danish, One Piece referenc
 `workspace/CLAUDE.md` gives Claude self-awareness (who it is, where it runs, what
 systems are available). `workspace/personality.md` defines tone and behavior.
 
+### Cron Scheduler (`src/infra/cron.ts`)
+
+Vegapunk hosts the cron scheduler that orchestrates the agent fleet (4 teams, ~35
+agents). Job timing uses `setInterval` + `setTimeout`, NOT classical cron — schedule
+strings in lab DB are parseable cron purely for human readability and the
+hot-reload override path.
+
+**Hot-reload loop (60s)**: pulls `Job`-rows + `Workspace`-rows + global `Setting`s
+from lab DB into in-memory `controls` map. Drives:
+- `enabled`, `pausedUntil`, `model`, `reasoningEffort`, `notifyOnFailure`,
+  `dailyCostCapUsd` — per agent
+- `Workspace.pausedUntil` — per team
+- `vacation_mode_until`, `concurrency_limit` — global
+- `vegapunk_restart_requested_at` — triggers `systemctl restart vegapunk` if
+  newer than `BOOTED_AT` (loop-safe; the new process boots after the flag)
+
+**Schedule changes are NOT hot-reloaded.** `Job.schedule` is read once at startup
+to build `setInterval` handles. To activate a schedule edit, the user clicks
+"Genstart vegapunk" on `/settings`.
+
+**Run-now poller (30s)**: scans `Job.runNowRequestedAt`, fires `runWithGate(job, true)`,
+then clears the flag via `lab.clearRunNow()`. Bypasses sleep + workspace-pause but
+NOT vacation/cost-cap.
+
+**`runWithGate` order of checks**:
+1. Vacation mode active → skip + write `JobRun{status:"skipped"}`
+2. Workspace.pausedUntil → skip
+3. Job.pausedUntil (unless run-now) → skip
+4. Job.enabled=false (unless run-now) → skip
+5. dailyCostCapUsd ≤ today's UTC sum → skip + alert (if `notifyOnFailure`)
+6. Otherwise call `job.run()`
+
+**Concurrency semaphore**: every `runClaudeStreaming` call goes through
+`runClaudeForJob(jobName, opts, onUpdate)` which (a) overrides model+effort from
+controls, (b) acquires a slot from a global semaphore (default 2, configurable via
+`Setting.concurrency_limit`), (c) bumps in-memory daily cost optimistically. The
+authoritative cost number comes from `lab.fetchCostSummary()` on the next hot-reload
+(SQL sum of `JobRun.costUsd` for today UTC). Up to 60s lag between actual usage
+and the gate's view of it — acceptable for cap enforcement.
+
+**Failure-alert wrapper**: `notify(jobName, msg, true)` replaces direct
+`notifyTelegram` calls in failure paths. Respects `Job.notifyOnFailure` so muted
+agents don't spam Telegram. Success notifications are not gated (low volume).
+
+**Where the actual code lives**: 1100+ lines in `src/infra/cron.ts`. The first
+~200 lines define controls state, gates, semaphore, and the `runClaudeForJob`
+wrapper. The rest are job definitions (managers, hunters, dispatchers, scouts).
+
 ## Environment Variables
 
 | Variable | Description |
