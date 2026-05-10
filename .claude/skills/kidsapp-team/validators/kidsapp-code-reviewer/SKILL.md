@@ -76,6 +76,32 @@ These are `info` severity unless they obscure a bug:
 - **Public method without summary docs** on a `MonoBehaviour` interface intended for other scripts
 - **Magic numbers** — `4f`, `0.5f`, `100` etc. that should be `[SerializeField] private` constants
 
+## Mini-Game Acceptance Checklist
+
+Run this checklist on every mini-game implementation from `kidsapp-unity-developer` before approving. All 9 items must pass — if any fails, create a ticket back to the developer with the specific failure(s) and do **not** approve.
+
+For each item, the "How to verify" line says exactly how to check it from the diff or repo so reviews stay consistent and fast.
+
+| # | Check | How to verify | Severity if missing |
+|---|-------|---------------|---------------------|
+| 1 | **Build** — project compiles in Unity 6.3 WebGL target | `gh run list --workflow=webgl.yml --limit 1` for the commit shows `success` | `error` |
+| 2 | **Scene** — mini-game has a `.unity` file under `Assets/Scenes/` and is listed in `ProjectSettings/EditorBuildSettings.asset` | `ls Assets/Scenes/<MiniGame>.unity` exists; grep its GUID in `EditorBuildSettings.asset` | `error` |
+| 3 | **Back-button** (ref #183) — universal back-button prefab is instantiated in the scene and returns to hub | grep scene YAML for the back-button prefab GUID; confirm same prefab as other mini-games (no custom variant) | `error` |
+| 4 | **Stjerne-belønning** (ref #182) — shared reward component fires on completion | grep gameplay scripts for the reward prefab/component reference; confirm it's invoked from the win/complete code path, not duplicated locally | `error` |
+| 5 | **Ingen tekst i UI** — no strings/labels visible to the player | grep UXML/scene files for `<Label`, `text=`, `Text:`; allowed only inside `#if UNITY_EDITOR` or debug-only canvases. Icons/audio only. | `error` |
+| 6 | **Lyde** — minimum a start-lyd (when game opens) and completion-lyd (on win) | grep gameplay scripts for `AudioSource.Play` / shared audio service calls in `Start`/`OnEnable` and in the completion path | `warning` (block approval if both missing) |
+| 7 | **Mobile touch** — input works with `Input.touches` / pointer events, not only `Input.GetMouseButton*` | grep gameplay scripts for `Input.GetMouseButton`/`Input.mousePosition` without a touch-equivalent path; UI Toolkit `PointerDownEvent` is fine (handles both) | `error` |
+| 8 | **Ingen null-refs** — Unity Console shows no errors during a normal play-through | open `https://kidsapp.gomuos.com`, launch the mini-game on a phone, complete one round; check browser DevTools console for `NullReferenceException` / `MissingReferenceException` | `error` |
+| 9 | **Hub-integration** (ref #180) — mini-game is registered in the hub-screen and launchable from there | grep hub-screen UXML/script for the mini-game's scene name or registry entry; confirm the tile loads the correct scene | `error` |
+
+### How to use this checklist
+
+1. Pull the diff: `git -C /home/vegapunk/projects/kids-app diff <base>..<head>`
+2. Run all four review passes above (build safety, WebGL compat, API misuse, conventions)
+3. Walk through the 9 acceptance items; mark each pass/fail
+4. If everything passes → comment "Acceptance: all 9 items pass" on the developer's ticket and approve
+5. If anything fails → create one ticket per failed item back to `kidsapp-unity-developer` with `severity` from the table and a one-line repro/fix hint
+
 ## Creating Tickets
 
 ```
