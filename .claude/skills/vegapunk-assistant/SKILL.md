@@ -90,29 +90,16 @@ vegapunk/
 
 ## How Changes Are Deployed
 
-**Automatic** — `.github/workflows/deploy.yml` rsyncs `src/` + manifest files to
-`/home/vegapunk/vegapunk/` on every push to `master` that touches source files,
-runs `bun install`, restarts the systemd unit, and verifies it's active. End-to-end
-in ~18 seconds.
-
+1. Edit code locally or via `/project vegapunk` in Telegram
+2. Commit and push to GitHub
+3. On VPS: pull and restart
+```bash
+ssh root@46.224.215.213
+su - vegapunk -c "cd ~/projects/vegapunk && git pull"
+cp -r /home/vegapunk/projects/vegapunk/src /home/vegapunk/projects/vegapunk/workspace /home/vegapunk/vegapunk/
+chown -R vegapunk:vegapunk /home/vegapunk/vegapunk/src /home/vegapunk/vegapunk/workspace
+systemctl restart vegapunk
 ```
-git push origin master   # done — workflow handles the rest
-```
-
-Manual trigger if needed: `gh workflow run deploy.yml --repo shpatjakupi/vegapunk`.
-
-**On failure** the workflow posts a Telegram message (same bot used at runtime)
-with the short SHA, commit subject, and a link to the failed run.
-
-**Secrets used** (set via `gh secret set`):
-- `VPS_SSH_KEY` — dedicated ed25519 deploy key, separate from personal SSH (revocable).
-  Public key lives in `/root/.ssh/authorized_keys` on the VPS.
-- `VPS_HOST` — `46.224.215.213`
-- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` — for failure notification.
-
-**`bun.lock` is not committed** — workflow runs plain `bun install` (not
-`--frozen-lockfile`). With only 3 deps that's fine; if you ever want reproducible
-builds, commit the lockfile and add `--frozen-lockfile` back.
 
 ## Available Projects (via /project)
 
@@ -132,27 +119,8 @@ Read `references/inspiration.md` for full details on reclaw's architecture and f
 Vegapunk is inspired by Peter's reclaw bot (`github.com/peterstorm/reclaw`) — a mature
 Telegram-based AI assistant with scheduled skills, deep research, reminders, and more.
 
-## Agent Fleet Hosted Here
-
-Vegapunk's `src/infra/cron.ts` is the runtime for **four independent agent teams**:
-gomuos, strawhats, kidsapp, and revolutionaries. Each has its own skill folder and
-its own workspace in the lab dashboard.
-
-**For any question about which agents exist, when they run, or how tickets flow
-between teams, read `agent-fleet` skill first** — it's the master index. Each
-team's own skill (`gomuos-team`, `strawhat-team`, `kidsapp-team`, `revolutionary-team`)
-has the deep dive.
-
-Vegapunk-specific responsibilities for the fleet:
-- `cron.ts` registers every job with its workspace via `workspaceForJob(name)` (prefix-based routing).
-- Daily/weekly hunters/scouts align to their declared UTC time via `parseCron` + `msUntilNextFire`.
-- The ticket-dispatcher polls every 3 minutes and spawns Claude Code subprocesses
-  with `cwd` chosen by `getCwdForTicket` (different repo per agent prefix).
-- All agent jobs call back to the lab via `lab-client.ts` (`updateJobStatus`, `createTicket`).
-
 ## When to Read References
 
 - **Architecture, tech stack, VPS setup**: Read `references/architecture.md`
 - **Reclaw features and inspiration for new features**: Read `references/inspiration.md`
 - **Roadmap and planned features**: Read `references/roadmap.md`
-- **Agent fleet (4 teams) overview**: Read the `agent-fleet` skill (separate skill in same dotfiles)

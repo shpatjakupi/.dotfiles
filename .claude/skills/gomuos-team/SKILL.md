@@ -108,46 +108,26 @@ The manager creates tickets for work that hunters haven't captured — spotted v
 
 ## Ticket Routing (Manager logic)
 
-Hunters **create** tickets — they are never assigned tickets. The manager routes unassigned tickets to devs and validators.
-
 ```
-Unassigned ticket arrives (no assignedAgent)
+New unrouted ticket arrives
   ↓
 gomuos-manager reads ticket
   ↓
-Is it an implementation task?
-  ├── frontend change needed → gomuos-frontend-developer
-  └── backend change needed  → gomuos-backend-developer
+Domain-specific? → route to specialist hunter
+  ├── checkout/payment/promo     → gomuos-checkout-specialist
+  ├── wolt/delivery/webhook      → gomuos-wolt-specialist
+  ├── menu/food/beverage/filling → gomuos-menu-specialist
+  ├── order lifecycle/ws         → gomuos-orders-specialist
+  └── admin/shop config          → gomuos-admin-specialist
   ↓
-Is it a validation task?
-  ├── code review needed     → gomuos-code-reviewer
-  └── E2E test needed        → gomuos-playwright-tester
+Implementation ticket?
+  ├── frontend                   → gomuos-frontend-developer
+  └── backend                    → gomuos-backend-developer
   ↓
-Is it a vague/complex ticket the human created manually?
-  → route to the relevant hunter for analysis + sub-ticket creation:
-    ├── checkout/payment/promo     → gomuos-checkout-specialist
-    ├── wolt/delivery/webhook      → gomuos-wolt-specialist
-    ├── menu/food/beverage/filling → gomuos-menu-specialist
-    ├── order lifecycle/ws         → gomuos-orders-specialist
-    └── admin/shop config          → gomuos-admin-specialist
+Post-implementation?
+  ├── code review                → gomuos-code-reviewer
+  └── E2E test                   → gomuos-playwright-tester
 ```
-
-In normal operation, hunters run on cron and create tickets directly with `assignedAgent` already set — the manager doesn't need to touch them.
-
-## Ticket Status Flow
-
-```
-pending ──→ approved ──→ in_progress ──→ done
-   │
-   │   human clicks "Spørg agent" (comment system)
-   ├──→ needs_response ──→ in_progress ──→ pending (agent svarede)
-   │
-   └──→ rejected
-```
-
-Agents set `assignedAgent` when creating tickets. The dispatcher in Vegapunk picks up `approved` and `needs_response` tickets every 3 minutes and spawns the agent. For `needs_response`, the agent only reads comments and replies — it does not execute the task.
-
-For full Lab architecture (schema, API routes, comment system, deployment): see **gomuos-lab** skill.
 
 ## Lab API
 
@@ -156,15 +136,14 @@ For full Lab architecture (schema, API routes, comment system, deployment): see 
 
 | Endpoint | Use |
 |----------|-----|
-| `GET /api/tickets?status=<s>` | Fetch tickets, optional status filter |
+| `GET /api/tickets?status=pending` | Fetch open tickets |
 | `POST /api/tickets` | Create ticket |
-| `PATCH /api/tickets/{id}` | Update status, assignedAgent, executionLog |
-| `GET /api/tickets/{id}/poll` | Poll for status change (Vegapunk uses this) |
-| `GET /api/tickets/{id}/comments` | Fetch comment thread |
-| `POST /api/tickets/{id}/comments` | Post comment. `askAgent: true` → sets status to `needs_response` |
-| `POST /api/jobs` | Register or update cron job status |
+| `PATCH /api/tickets/{id}` | Assign agent, mark done |
+| `GET /api/tickets/{id}/poll` | Poll for human approval |
+| `POST /api/jobs` | Register cron job |
+| `PATCH /api/jobs/{name}` | Update job status |
 
-**Create ticket:**
+**Ticket format:**
 ```json
 {
   "title": "Verb-first short description",
@@ -175,45 +154,23 @@ For full Lab architecture (schema, API routes, comment system, deployment): see 
 }
 ```
 
-**Mark done:**
-```
-PATCH /api/tickets/{id}
-{ "status": "done", "executionLog": "<summary of what was done>" }
-```
-
-**Post comment as agent:**
-```
-POST /api/tickets/{id}/comments
-{ "author": "gomuos-frontend-developer", "body": "<response>" }
-```
-
 ## Cron Integration (Vegapunk)
 
 Agents run as cron jobs in `vegapunk/src/infra/cron.ts`. Pattern:
 ```typescript
 async function runAgent() {
   await lab.updateJobStatus("gomuos-agent-name", "running");
-  // spawn Claude Code via runClaudeStreaming()
-  await lab.updateJobStatus("gomuos-agent-name", "success", output);
+  try {
+    // spawn Claude Code with the agent skill
+    await lab.updateJobStatus("gomuos-agent-name", "success", output);
+  } catch (err) {
+    await lab.updateJobStatus("gomuos-agent-name", "error", err.message);
+  }
 }
 ```
 
-**Current schedule:**
-| Job | Interval |
-|-----|----------|
-| `health-monitor` | Every 15 min |
-| `ticket-dispatcher` | Every 3 min — picks up `approved` + `needs_response` |
-| `gomuos-manager` | Every 2 hours |
-| `gomuos-checkout-specialist` | Daily 08:00 |
-| `gomuos-ui-reviewer` | Daily 09:00 |
-| `gomuos-admin-specialist` | Daily 10:00 |
-| `gomuos-orders-specialist` | Daily 11:00 |
-| `gomuos-wolt-specialist` | Daily 12:00 |
-| `gomuos-menu-specialist` | Weekly (Monday) |
-
-## Model
-
-All GomuOS agents run on **`claude-opus-4-7`** — pinned explicitly in `vegapunk/src/infra/cron.ts` on every job (hunters, manager, and the dispatcher that spawns reactive devs/validators). Same tier as Straw Hats, so the whole fleet is consistent.
+Current cron jobs: `health-monitor` (every 15 min).
+Planned: hunters run nightly, manager runs daily.
 
 ## Project Goals
 

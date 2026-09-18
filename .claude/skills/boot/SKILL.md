@@ -7,6 +7,6 @@ description: Loader fuld systemkontekst for agent-flåden. Læs når du starter 
 
 Læs disse tre filer i rækkefølge med Read-værktøjet, derefter bekræft kort hvad du forstår og vent på instruktioner:
 
-1. `~/.claude/skills/agent-fleet/SKILL.md`
+1. `~/Desktop/projects/.dotfiles/.claude/skills/agent-fleet/SKILL.md`
 2. `~/.claude/skills/vegapunk-assistant/SKILL.md`
-3. `~/.claude/skills/gomuos-lab/SKILL.md`
+3. `~/Desktop/projects/.dotfiles/.claude/skills/gomuos-lab/SKILL.md`
