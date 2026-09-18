@@ -110,7 +110,6 @@ systemctl restart vegapunk
 | `/project infra` | `/home/vegapunk/projects/infra-gitops` | shpatjakupi/infra-gitops |
 | `/project dotfiles` | `/home/vegapunk/projects/.dotfiles` | shpatjakupi/.dotfiles |
 | `/project vegapunk` | `/home/vegapunk/projects/vegapunk` | shpatjakupi/vegapunk |
-| `/project indfoedsret` | `/home/vegapunk/projects/indfoedsret-app` | shpatjakupi/indfoedsret-app |
 
 ## Inspiration: reclaw (Peter's bot)
 
