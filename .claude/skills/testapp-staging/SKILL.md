@@ -33,9 +33,30 @@ Ingress routes: `/ws`, `/images`, `/wolt` -> backend; `/` -> frontend.
 `NEXT_PUBLIC_*` vars are **baked at build time** — a separate image is required.
 
 - Image: `ghcr.io/shpatjakupi/next-app-template-testapp:latest`
-- Workflow: `next-app-template/.github/workflows/build-testapp.yml` (`workflow_dispatch`)
-- Key build args: `NEXT_PUBLIC_DOMAIN=testapp.gomuos.com`, `NEXT_PUBLIC_WS_URL=https://testapp.gomuos.com/ws`
-- After triggering workflow, frontend pod will auto-pull on next restart (or `kubectl rollout restart deployment/testapp-frontend -n gomuos`)
+- Workflow: `next-app-template/.github/workflows/build-testapp.yml` — runs on **every push to `main`** (and `workflow_dispatch`), alongside the prod `build.yml`
+- Key build args: `NEXT_PUBLIC_DOMAIN=testapp.gomuos.com`, `NEXT_PUBLIC_WS_URL=https://testapp.gomuos.com/ws`, token key from `TESTAPP_TOKEN_ENCRYPTION_KEY` secret
+
+## Auto-deploy (staging always tracks main)
+
+Since 2026-09-18 both CI workflows end with a restart step, so a push to `main` lands on testapp within minutes with no manual action:
+
+```
+push to main → GitHub Actions builds :latest
+             → ssh testapp-deploy@46.224.215.213 frontend|backend   (secret TESTAPP_DEPLOY_KEY)
+             → /usr/local/bin/testapp-restart                        (forced command, no shell)
+             → kubectl rollout restart deployment/testapp-<x>         (kubeconfig bound to SA testapp-deployer)
+```
+
+Lock-down, in layers:
+- `testapp-deploy` Linux user; its `authorized_keys` entry has `command="/usr/local/bin/testapp-restart"`, `no-pty`, no forwarding — the key can run nothing else
+- the script accepts only `frontend` or `backend`
+- `/home/testapp-deploy/.kube/config` uses the `testapp-deployer` ServiceAccount; its Role (`infra-gitops/restaurants/testapp/rbac.yaml`) allows get/patch/watch on **only** `testapp-frontend` and `testapp-backend` — `ordrupspizza-*` and secrets are denied
+- production stays digest-pinned in infra-gitops and is never touched by CI
+
+Manual trigger of the same path (private key: only in GitHub secrets — regenerate with `ssh-keygen -t ed25519` and update `authorized_keys` + both repos' `TESTAPP_DEPLOY_KEY` if lost):
+```bash
+ssh -i <deploy-key> testapp-deploy@46.224.215.213 frontend
+```
 
 ## Backend config
 
@@ -94,8 +115,7 @@ ssh root@46.224.215.213 "kubectl rollout restart deployment/testapp-backend depl
 
 **Rebuild frontend image** (when build args need changing):
 1. Edit `build-testapp.yml` in `next-app-template`
-2. Trigger `workflow_dispatch` on GitHub Actions
-3. Restart frontend pod after build completes (~8 min)
+2. Push to `main` (or trigger `workflow_dispatch`) — the pod restarts automatically when the build finishes (~6-8 min)
 
 ## TLS
 
