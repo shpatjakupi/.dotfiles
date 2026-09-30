@@ -20,10 +20,13 @@ oversigten over hvordan de hænger sammen.
 
 Når du starter en session der arbejder med hele flåden:
 
-1. Læs denne fil færdig.
-2. Skal du røre vegapunk (cron, dispatcher, deploy): læs også `vegapunk-assistant` skill.
-3. Skal du røre lab'en (tickets, workspaces, agent-controls, schema): læs også `gomuos-lab` skill.
-4. Bekræft kort hvad du har forstået, og vent på instruktioner.
+1. Åbn VS Code-workspacet for brugeren (se afsnittet nedenfor):
+   `code "C:\Users\shpat\Desktop\projects\agent-fleet.code-workspace"`
+   Spring over hvis brugeren siger nej, eller hvis sessionen kører på VPS'en (ingen VS Code der).
+2. Læs denne fil færdig.
+3. Skal du røre vegapunk (cron, dispatcher, deploy): læs også `vegapunk-assistant` skill.
+4. Skal du røre lab'en (tickets, workspaces, agent-controls, schema): læs også `gomuos-lab` skill.
+5. Bekræft kort hvad du har forstået, og vent på instruktioner.
 
 **Status at kende (se memory for detaljer):** alle 4 workspaces er pauset permanent
 siden 2026-05-15 — cron kører, men skipper alle jobs.
