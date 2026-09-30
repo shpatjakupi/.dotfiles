@@ -1,11 +1,12 @@
 ---
 name: agent-fleet
 description: >
-  Master index over alle 4 agent-teams (gomuos, strawhats, kidsapp, revolutionaries) der
-  kører på Hetzner VPS'en. Kort beskrivelse af hvert hold, hvor deres skills bor, hvordan
-  cron-schedulet er sammensat, hvor lab-dashboardet ligger, og hvordan tickets flyder
-  mellem holdene. Læs denne skill først når du vil have overblik over hele agent-flåden,
-  ikke når du arbejder i et specifikt team.
+  Master-skill for hele agent-flåden — alle 4 agent-teams (gomuos, strawhats, kidsapp,
+  revolutionaries) der kører på Hetzner VPS'en. Kort beskrivelse af hvert hold, hvor deres
+  skills bor, hvordan cron-schedulet er sammensat, hvor lab-dashboardet ligger, hvordan
+  tickets flyder mellem holdene, og VS Code-workspacet der samler det hele. Brug den når
+  du starter en session med hele flåden ("boot", "load systemkontekst", "agent-flåden"),
+  eller vil have overblik på tværs af teams — ikke når du arbejder i et specifikt team.
 ---
 
 # Agent Fleet — Master Index
@@ -14,6 +15,25 @@ Fire uafhængige agent-teams kører på den samme Hetzner VPS (`46.224.215.213`)
 orkestreret af én `vegapunk` cron-service og overvåget gennem ét lab-dashboard
 (`lab.gomuos.com`). Hver team har sin egen skill med fuld dybde — denne fil er
 oversigten over hvordan de hænger sammen.
+
+## Session-start (boot)
+
+Når du starter en session der arbejder med hele flåden:
+
+1. Læs denne fil færdig.
+2. Skal du røre vegapunk (cron, dispatcher, deploy): læs også `vegapunk-assistant` skill.
+3. Skal du røre lab'en (tickets, workspaces, agent-controls, schema): læs også `gomuos-lab` skill.
+4. Bekræft kort hvad du har forstået, og vent på instruktioner.
+
+**Status at kende (se memory for detaljer):** alle 4 workspaces er pauset permanent
+siden 2026-05-15 — cron kører, men skipper alle jobs.
+
+## VS Code-workspace
+
+`C:\Users\shpat\Desktop\projects\agent-fleet.code-workspace` samler hele flåden i ét
+vindue: de 4 team-skill-mapper, lab-skills, denne skill, `vegapunk/`, `gomuos-lab/`
+og hele `.dotfiles`. Åbn med `code <sti>` eller dobbeltklik. Tilføjer du et nyt team,
+så tilføj også dets skill-mappe til `folders` i workspace-filen.
 
 ## De 4 teams
 
