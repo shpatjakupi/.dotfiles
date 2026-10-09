@@ -169,8 +169,22 @@ async function runAgent() {
 }
 ```
 
-Current cron jobs: `health-monitor` (every 15 min).
-Planned: hunters run nightly, manager runs daily.
+Current cron jobs (UTC): `health-monitor` (every 15 min), `ticket-dispatcher` (every 3 min),
+`gomuos-manager` (every 2h), and the hunters daily — admin 01:00, wolt 03:00, ui-reviewer 06:00,
+checkout 21:00, orders 23:00 — plus menu weekly (Mon 19:00). Hunters also do one startup run
+after each vegapunk restart. Default model is `claude-opus-5-5` (`DEFAULT_MODEL` in `cron.ts`),
+overridable per agent in the Lab.
+
+### Hunter ticket rules (enforced in the cron prompt, `runHunterAudit`)
+These override the individual hunter skills and GOALS.md:
+- Max `HUNTER_MAX_TICKETS` (3) tickets per run.
+- Only issues that are critical/serious, or have a real effect for customers on the ordering site
+  or for staff in the admin panel. No cosmetic tweaks, refactors or speculative polish.
+- Dedupe against ALL tickets in the workspace (incl. rejected and done), not just pending.
+- Zero tickets is a normal result.
+
+Why: before 2026-10 the prompt said "create tickets for any issues found" with no cap — the team
+produced ~500 tickets against working production code.
 
 ## Project Goals
 
