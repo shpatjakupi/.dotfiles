@@ -1,7 +1,7 @@
 ---
 name: agent-fleet
 description: >
-  Master-skill for hele agent-flåden — de 2 agent-teams (gomuos og kidsapp = Bumble) der
+  Master-skill for hele agent-flåden — de 3 agent-teams (gomuos, kidsapp = Bumble og vegalab) der
   kører på Hetzner VPS'en. Kort beskrivelse af hvert hold, hvor deres
   skills bor, hvordan cron-schedulet er sammensat, hvor lab-dashboardet ligger, hvordan
   tickets flyder mellem holdene, og VS Code-workspacet der samler det hele. Brug den når
@@ -11,7 +11,7 @@ description: >
 
 # Agent Fleet — Master Index
 
-To agent-teams kører på den samme Hetzner VPS (`46.224.215.213`),
+Tre agent-teams kører på den samme Hetzner VPS (`46.224.215.213`),
 orkestreret af én `vegapunk` cron-service og overvåget gennem ét lab-dashboard
 (`lab.gomuos.com`). Hver team har sin egen skill med fuld dybde — denne fil er
 oversigten over hvordan de hænger sammen.
@@ -28,8 +28,9 @@ Når du starter en session der arbejder med hele flåden:
 4. Skal du røre lab'en (tickets, workspaces, agent-controls, schema): læs også `gomuos-lab` skill.
 5. Bekræft kort hvad du har forstået, og vent på instruktioner.
 
-**Status at kende (se memory for detaljer):** workspaces er pauset permanent
-siden 2026-05-15 — cron kører, men skipper alle jobs.
+**Status at kende (se memory for detaljer):** gomuos og kidsapp er pauset permanent
+siden 2026-05-15 — cron kører, men skipper deres jobs. Vegalab (fra 2026-11-10) er aktivt:
+ticket-dispatcheren er undtaget fra workspace-pause og springer kun tickets i pausede workspaces over.
 
 **Straw Hats og Revolutionaries er lagt ned og slettet (2026-11-10)** — skills, cron-jobs,
 Lab-sider og DB-data er væk (backup i `/root/backups/` på VPS'en). Foreslå dem ikke igen.
@@ -37,7 +38,7 @@ Lab-sider og DB-data er væk (backup i `/root/backups/` på VPS'en). Foreslå de
 ## VS Code-workspace
 
 `C:\Users\shpat\Desktop\projects\agent-fleet.code-workspace` samler hele flåden i ét
-vindue: de 2 team-skill-mapper, lab-skills, denne skill, `vegapunk/`, `gomuos-lab/`
+vindue: de 3 team-skill-mapper, lab-skills, denne skill, `vegapunk/`, `gomuos-lab/`
 og hele `.dotfiles`. Åbn med `code <sti>` eller dobbeltklik. Tilføjer du et nyt team,
 så tilføj også dets skill-mappe til `folders` i workspace-filen.
 
@@ -45,12 +46,13 @@ Samme mapper vises på **`lab.gomuos.com/fleet`** (Agent-flåden) med links og r
 skills, så de kan tilgås uden VS Code. Holdes i sync med workspace-filen
 (`ENTRIES` i `gomuos-lab/src/app/fleet/page.tsx`).
 
-## De 2 teams
+## De 3 teams
 
 | Team | Formål | Skill | Workspace | Lab |
 |---|---|---|---|---|
 | **gomuos-team** | Vedligeholder food-platformen (audit + fix) | `gomuos-team/SKILL.md` | `gomuos` (id 1) | `/tickets`, `/hunters`, `/jobs` |
 | **kidsapp-team** | Bumble App: børneapp med brumbassen (web + Capacitor, 2D via OpenAI, 3D i Blender). Unity droppet 2026-10-22 | `kidsapp-team/SKILL.md` | `kidsapp` (id 3), vises som "Bumble" | `/kidsapp`, `/kidsapp/agents` |
+| **vegalab-team** | Udfører ændringer i Lab'en og Vegapunk, bestilt med ⚡ Udfør i Lab-chatten og godkendt én gang. Agenter: `lab-developer`, `vegapunk-developer`. Dispatcheren deployer | `vegalab-team/SKILL.md` | `vegalab` | `/vegalab`, `/chat` |
 
 ## Cross-cutting infrastruktur
 

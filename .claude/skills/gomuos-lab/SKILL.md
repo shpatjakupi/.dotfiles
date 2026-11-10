@@ -1,6 +1,6 @@
 ---
 name: gomuos-lab
-description: GomuOS Lab — Shpat's dashboard at lab.gomuos.com (he calls it "vegalab"). Two workspaces (gomuos for the food platform, kidsapp shown as "Bumble"), 2FA login, image attachments, a built-in Claude chat (/chat), the agent-fleet page (/fleet), Prisma schema, API routes, ticket status flow, UI components, deployment, migrations and gotchas. Use when building or debugging the Lab itself (not when working with agent skills or the order app).
+description: GomuOS Lab — Shpat's dashboard at lab.gomuos.com (he calls it "vegalab"). Three workspaces (gomuos for the food platform, kidsapp shown as "Bumble", vegalab for changes to the Lab and Vegapunk), 2FA login, image attachments, a built-in Claude chat (/chat) with ⚡ Udfør execution plans, the agent-fleet page (/fleet), Prisma schema, API routes, ticket status flow, UI components, deployment, migrations and gotchas. Use when building or debugging the Lab itself (not when working with agent skills or the order app).
 ---
 
 # GomuOS Lab
@@ -32,6 +32,7 @@ retired and deleted on 2026-11-10 (DB rows, pages, APIs and the Project model ar
 |------|----------|---------|-----|
 | `gomuos` | GomuOS | Maintains the food-ordering platform | `/tickets`, `/hunters`, `/jobs` |
 | `kidsapp` | Bumble | Bumble App (children's app with the bumblebee) | `/kidsapp`, `/kidsapp/agents` |
+| `vegalab` | Vegalab | Changes to the Lab and Vegapunk, ordered from `/chat` (⚡ Udfør) and executed by Vegapunk | `/vegalab` |
 
 The slug `kidsapp` stays so URLs, tickets and the `kidsapp-*` agent prefix keep working.
 
@@ -66,7 +67,8 @@ model Comment    { id, ticketId?, author, body, createdAt }                     
 model Execution  { id, ticketId, status, log?, startedAt, finishedAt? }                      // lab_executions
 model Attachment { id, ticketId? (cascade), filename, mimeType, sizeBytes, data LongBlob, uploadedBy, createdAt } // lab_attachments
 model ChatThread { id, title, createdAt, updatedAt, messages }                               // lab_chat_threads
-model ChatMessage{ id, threadId (cascade), role user|assistant, content, status pending|done|error, createdAt } // lab_chat_messages
+model ChatMessage{ id, threadId (cascade), role user|assistant, content, status pending|done|error, createdAt,
+                   planTitle?, planBody?, planAgent?, planStatus? pending|approved|rejected, ticketId? } // lab_chat_messages
 ```
 
 Full definitions: `prisma/schema.prisma`.
@@ -110,6 +112,8 @@ Every route needs the session or the API key (see Auth).
 | `GET` / `POST` | `/api/chat/threads` | Session only. POST `{ message }` starts a thread |
 | `GET` / `DELETE` | `/api/chat/threads/:id` | Thread with messages |
 | `POST` | `/api/chat/threads/:id/messages` | `{ message }` — 409 while a reply is pending |
+| `POST` | `/api/chat/threads/:id/plan` | ⚡ Udfør — Claude writes an execution plan (session only) |
+| `POST` | `/api/chat/plans/:id` | `{ action: approve\|reject }` — approve creates an approved Vegalab ticket |
 | `GET` / `POST` | `/api/jobs` | List (`?workspace=`) / upsert. Terminal `lastStatus` appends a `JobRun` |
 | `PATCH` | `/api/jobs/:name` | Controls: `schedule`, `enabled`, `model`, `reasoningEffort`, `notifyOnFailure`, `dailyCostCapUsd`, `pausedUntil`, `runNowRequestedAt` (null only) |
 | `POST` | `/api/jobs/:name/run-now` | Vegapunk's poller fires + clears within 30 s |
@@ -134,14 +138,26 @@ Agents attaching images: `curl -H "Authorization: Bearer $LAB_API_KEY" -F file=@
 
 Lab's own Claude engine — independent of Vegapunk. `src/lib/chat.ts`:
 - Each turn runs `claude -p --tools Read,Grep,Glob` in `/data/chat` inside the pod. It can read
-  and propose, never change anything.
-- Context, refreshed at most every 5 min: `./dotfiles` (tarball of the public `.dotfiles` repo) and
+  and propose, never change anything itself.
+- Context, refreshed at most every 5 min: `./dotfiles` (tarball of the `.dotfiles` repo),
+  `./code/gomuos-lab` and `./code/vegapunk` (tarballs via `GITHUB_TOKEN`, best effort) and
   `./lab` (workspaces.md, jobs.md, tickets/<slug>.md with comments). Images referenced in the
   thread are written to `./images` so Claude can Read them.
 - The last 30 messages go into the prompt (no `--resume`). The reply runs in the background; the
   UI polls every 2.5 s. A reply pending > 10 min is marked as lost (pod restart).
 - Model from `CLAUDE_MODEL` (Opus 5.5); auth from `CLAUDE_CODE_OAUTH_TOKEN` (shared with Vegapunk
   and pizzacrew-inbox, expires 2027-08-18).
+
+### ⚡ Udfør (execution plans → Vegalab)
+
+- `POST /api/chat/threads/:id/plan` adds the user message "⚡ Udfør — …" and a pending assistant
+  turn that runs `runClaudeJson` with `{reply, agent: lab-developer|vegapunk-developer|none, title, plan}`.
+  The plan is stored on the message (`planTitle`, `planBody`, `planAgent`, `planStatus`, migration 011).
+- `POST /api/chat/plans/:id {action: approve|reject}` (session only). **Approve is the one approval**:
+  it creates a ticket in workspace `vegalab` with `status: "approved"`, `assignedAgent` = the agent and
+  `delegatedBy: "lab-chat"`, stores `ticketId` and supersedes older pending plans in the thread.
+- Vegapunk's dispatcher then runs the agent and deploys. The flow and the agents are described in
+  the `vegalab-team` skill.
 
 ## Skill editor (✨ Forbedr med AI)
 
@@ -193,7 +209,7 @@ Every `/<team>/agents` page renders `TeamJobs` → `JobRow` rows; a row expands 
 ## Workspace helper
 
 Resolve workspace IDs via `getWorkspaceIdBySlug()` / `isWorkspaceSlug()` from `src/lib/workspace.ts`
-(`WORKSPACE_SLUGS = ["gomuos", "kidsapp"]`). Adding a workspace: append the slug there, insert a
+(`WORKSPACE_SLUGS = ["gomuos", "kidsapp", "vegalab"]`). Adding a workspace: append the slug there, insert a
 `lab_workspaces` row, add a Sidebar group and pages, and a `<team>-team/` skill folder.
 
 ## Tailwind Theme Tokens
