@@ -43,7 +43,7 @@ You can use WebSearch and WebFetch to read these. Do not fetch images — we wor
    - "Functionality before design" philosophy
 
 3. **Research 1-3 mini-game ideas this run.** Pull from one of your sources or combine patterns. Each idea must be:
-   - Implementable as a Unity demo in 1-2 hours of dev time
+   - Implementable as a single-mechanic web game (TypeScript + Three.js/PixiJS) in 1-2 hours of dev time
    - Single mechanic (one verb the child does: tap, drag, match, sort, trace, drop)
    - Aligned with one learning domain from GOALS.md
    - Sound-driven (no language, no readable text)
@@ -62,7 +62,7 @@ You can use WebSearch and WebFetch to read these. Do not fetch images — we wor
      "workspace": "kidsapp"
    }
    ```
-   Do NOT set `assignedAgent`. The human reviews; if approved, the manager later routes to `kidsapp-unity-developer`.
+   Do NOT set `assignedAgent`. The human reviews and decides what gets built.
 
 5. **Report what you created** in your final answer.
 

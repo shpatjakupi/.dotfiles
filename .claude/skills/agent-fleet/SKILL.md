@@ -1,8 +1,8 @@
 ---
 name: agent-fleet
 description: >
-  Master-skill for hele agent-flåden — alle 4 agent-teams (gomuos, strawhats, kidsapp,
-  revolutionaries) der kører på Hetzner VPS'en. Kort beskrivelse af hvert hold, hvor deres
+  Master-skill for hele agent-flåden — de 2 agent-teams (gomuos og kidsapp = Bumble) der
+  kører på Hetzner VPS'en. Kort beskrivelse af hvert hold, hvor deres
   skills bor, hvordan cron-schedulet er sammensat, hvor lab-dashboardet ligger, hvordan
   tickets flyder mellem holdene, og VS Code-workspacet der samler det hele. Brug den når
   du starter en session med hele flåden ("boot", "load systemkontekst", "agent-flåden"),
@@ -11,7 +11,7 @@ description: >
 
 # Agent Fleet — Master Index
 
-Fire uafhængige agent-teams kører på den samme Hetzner VPS (`46.224.215.213`),
+To agent-teams kører på den samme Hetzner VPS (`46.224.215.213`),
 orkestreret af én `vegapunk` cron-service og overvåget gennem ét lab-dashboard
 (`lab.gomuos.com`). Hver team har sin egen skill med fuld dybde — denne fil er
 oversigten over hvordan de hænger sammen.
@@ -28,38 +28,30 @@ Når du starter en session der arbejder med hele flåden:
 4. Skal du røre lab'en (tickets, workspaces, agent-controls, schema): læs også `gomuos-lab` skill.
 5. Bekræft kort hvad du har forstået, og vent på instruktioner.
 
-**Status at kende (se memory for detaljer):** alle 4 workspaces er pauset permanent
+**Status at kende (se memory for detaljer):** workspaces er pauset permanent
 siden 2026-05-15 — cron kører, men skipper alle jobs.
+
+**Straw Hats og Revolutionaries er lagt ned (2026-11-10).** Shpat arbejder ikke længere med
+dem. De er fjernet fra Lab'en og fra VS Code-workspacet; deres DB-rækker og skill-mapper
+ligger stadig, men brug dem ikke og foreslå dem ikke.
 
 ## VS Code-workspace
 
 `C:\Users\shpat\Desktop\projects\agent-fleet.code-workspace` samler hele flåden i ét
-vindue: de 4 team-skill-mapper, lab-skills, denne skill, `vegapunk/`, `gomuos-lab/`
+vindue: de 2 team-skill-mapper, lab-skills, denne skill, `vegapunk/`, `gomuos-lab/`
 og hele `.dotfiles`. Åbn med `code <sti>` eller dobbeltklik. Tilføjer du et nyt team,
 så tilføj også dets skill-mappe til `folders` i workspace-filen.
 
-## De 4 teams
+Samme mapper vises på **`lab.gomuos.com/fleet`** (Agent-flåden) med links og redigerbare
+skills, så de kan tilgås uden VS Code. Holdes i sync med workspace-filen
+(`ENTRIES` i `gomuos-lab/src/app/fleet/page.tsx`).
 
-```
-┌────────────────┐      ┌────────────────┐      ┌────────────────┐      ┌────────────────┐
-│ Revolutionaries│─────▶│   Strawhats    │─────▶│    GomuOS      │      │    KidsApp     │
-│  (ideate)      │      │   (build)      │      │   (operate)    │      │   (build+ops)  │
-└────────────────┘      └────────────────┘      └────────────────┘      └────────────────┘
-   10 agenter              7 agenter              12 agenter              6 agenter
-   workspace=4             workspace=2            workspace=1             workspace=3
-```
+## De 2 teams
 
-| Team | Formål | Skill | Workspace | URL |
+| Team | Formål | Skill | Workspace | Lab |
 |---|---|---|---|---|
-| **gomuos-team** | Vedligeholder eksisterende food-platform (audit + fix) | `gomuos-team/SKILL.md` | `gomuos` (id 1) | ordrupspizza.dk |
-| **strawhat-team** | Bygger nye full-stack apps fra menneske-ønsker | `strawhat-team/SKILL.md` | `strawhats` (id 2) | `<slug>.gomuos.com` |
-| **kidsapp-team** | Bygger og vedligeholder Unity WebGL-app for børn | `kidsapp-team/SKILL.md` | `kidsapp` (id 3) | kidsapp.gomuos.com |
-| **revolutionary-team** | Genererer dagligt revenue-idéer | `revolutionary-team/SKILL.md` | `revolutionaries` (id 4) | n/a (kun tickets) |
-
-Pipelinen mellem holdene: **Revolutionaries** producerer idé-tickets, mennesket
-godkender, en idé sendes videre som "wish" til **Strawhats** der bygger en ny app
-fra spec til deployed. Når appen er live bliver vedligehold til **GomuOS**' eller
-**KidsApp**' domæne, afhængigt af type.
+| **gomuos-team** | Vedligeholder food-platformen (audit + fix) | `gomuos-team/SKILL.md` | `gomuos` (id 1) | `/tickets`, `/hunters`, `/jobs` |
+| **kidsapp-team** | Bumble App: børneapp med brumbassen (web + Capacitor, 2D via OpenAI, 3D i Blender). Unity droppet 2026-10-22 | `kidsapp-team/SKILL.md` | `kidsapp` (id 3), vises som "Bumble" | `/kidsapp`, `/kidsapp/agents` |
 
 ## Cross-cutting infrastruktur
 
@@ -76,10 +68,11 @@ fra spec til deployed. Når appen er live bliver vedligehold til **GomuOS**' ell
                               ▼
         ┌────────────────────────────────────────────────┐
         │  gomuos-lab (Next.js på k3s, lab.gomuos.com)   │
-        │   - 4 workspaces, én pr. team                  │
+        │   - 2 aktive workspaces (gomuos, kidsapp)      │
         │   - sidebar grupperer pr. team                 │
         │   - per-team agent-side med feedback-form      │
         │   - approval flow: pending → approved → done   │
+        │   - /fleet, /chat (Claude), 2FA-login          │
         └────────────────────────────────────────────────┘
 ```
 
@@ -91,10 +84,9 @@ fyringstidspunkt; de fleste jobs aligner til præcis UTC-tid.
 
 | Kategori | Mønster | Eksempler |
 |---|---|---|
-| Hot jobs | `setInterval` fra opstart med per-job startup-offset (`HOT_JOB_STARTUP_OFFSET_MS`) | health-monitor (15m), ticket-dispatcher (3m), 3 managers |
+| Hot jobs | `setInterval` fra opstart med per-job startup-offset (`HOT_JOB_STARTUP_OFFSET_MS`) | health-monitor (15m), ticket-dispatcher (3m), managers |
 | Daglige jobs | Startup-stagger + alignment til næste UTC-tid + 24h interval | spredt over hele døgnet, mindst 2h mellem hver |
 | Ugentlige jobs | Samme som daglige, alignment til ugedag+tid + 7d interval | gomuos-menu-specialist |
-| Sekventielle pipelines | Aligner til fast tid, ingen startup-run | revolutionaries-pipeline (~50min, kører 10 agenter sekventielt med 30s sleep) |
 
 **Designprincipper når du tilføjer/justerer schedules:**
 - Daglige jobs spredes over hele 24h-cyklen så vi undgår parallelle Opus-subprocesser
@@ -102,8 +94,8 @@ fyringstidspunkt; de fleste jobs aligner til præcis UTC-tid.
 - To hot jobs med samme `intervalMs` MÅ ikke fyre på samme offset — tilføj en entry
   i `HOT_JOB_STARTUP_OFFSET_MS` (fx `kidsapp-manager: +1h` så 2h-cyklus rammer T+1h
   i stedet for samtidig med `gomuos-manager`).
-- Pipelines der spawner flere agenter skal have inter-agent sleep (revolutionaries
-  bruger 30s) for at undgå Anthropic rate-limit per-minute window.
+- Pipelines der spawner flere agenter skal have inter-agent sleep (fx 30s) for at
+  undgå Anthropic rate-limit per-minute window.
 
 For nøjagtige tidspunkter, læs `cron.ts` direkte — alt er deklareret i `jobs`-arrayet
 nederst i `createCronScheduler`.
@@ -161,20 +153,22 @@ execution failure, post-flight push-check, og begge throw-catches i dispatcher-l
 ## Lab API & workspaces
 
 - Base URL: `https://lab.gomuos.com/api`
-- Auth: `Authorization: Bearer $LAB_API_KEY`
+- Auth: `Authorization: Bearer $LAB_API_KEY` — **påkrævet på alle `/api/*`** (middleware,
+  2026-11-10). Uden nøgle eller browser-session svarer API'et 401.
 - Hvert ticket og job har `workspaceId`. Når en agent opretter tickets skal den
   inkludere `workspace: "<slug>"` (default er `gomuos` hvis udeladt).
 - Lab-skemaet: se `gomuos-lab` skill for fuld Prisma schema, status-flows og UI.
 
-UI-sider per team:
+UI-sider:
 - GomuOS: `/tickets`, `/hunters` (agenter), `/jobs`
-- Straw Hats: `/strawhats`, `/strawhats/agents`
-- KidsApp: `/kidsapp`, `/kidsapp/agents`
-- Revolutionaries: `/revolutionaries`, `/revolutionaries/agents`
+- Bumble: `/kidsapp`, `/kidsapp/agents`
+- Globalt: `/fleet` (agent-flåden), `/chat` (spar med Claude om skills/tickets/jobs), `/settings`
+
+Login kræver kodeord + TOTP-kode (2FA). Billeder kan vedhæftes tickets (`POST /api/attachments`).
 
 Agent-feedback fra alle teams går igennem `/api/agents/feedback` der opretter en
-ticket assignedAgent til den pågældende teams manager (gomuos-manager,
-strawhat-manager, kidsapp-manager eller revolutionary-captain).
+ticket assignedAgent til den pågældende teams manager (gomuos-manager
+eller kidsapp-manager).
 
 ## Hvor bor skill-filerne?
 
@@ -188,18 +182,9 @@ strawhat-manager, kidsapp-manager eller revolutionary-captain).
 │   ├── devs/                 ← frontend + backend
 │   ├── validators/           ← code-reviewer + playwright
 │   └── infra/
-├── strawhat-team/
-│   ├── SKILL.md
-│   ├── captain/              ← strawhat-manager
-│   ├── intake/, design/, devs/, ops/, qa/
 ├── kidsapp-team/
 │   ├── SKILL.md
-│   ├── manager/              ← kidsapp-manager
-│   ├── scouts/, devs/, validators/, infra/
-├── revolutionary-team/
-│   ├── SKILL.md
-│   ├── captain/              ← revolutionary-captain (også team-manager)
-│   ├── scouts/, analysts/, critics/
+│   └── scouts/               ← 3 idé-scouts (pauset)
 ├── gomuos-lab/SKILL.md       ← lab-dashboard arkitektur
 ├── vps-cluster/SKILL.md      ← k3s, Traefik, cert-manager
 └── vegapunk-assistant/SKILL.md ← Telegram-bot der orkestrerer
@@ -223,8 +208,7 @@ Sync-skills installerer dem til VPS i to former:
 
 1. Opret `dotfiles/.claude/skills/<team>-team/<group>/<agent-name>/SKILL.md`
 2. Hvis agenten kører på cron: tilføj job i `cron.ts`. `workspaceForJob()` autoroutes
-   så længe agent-navnet bruger team-prefixet (`gomuos-`, `strawhat-`, `kidsapp-`,
-   `revolutionary-`)
+   så længe agent-navnet bruger team-prefixet (`gomuos-` eller `kidsapp-`)
 3. Hvis agenten skal route'es af manager til specifikke ticket-typer: opdater
    `<team>-manager`'s skill med routing-regler
 4. Commit + push, sync-skills på VPS, restart vegapunk
