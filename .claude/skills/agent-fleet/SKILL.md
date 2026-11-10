@@ -31,9 +31,8 @@ Når du starter en session der arbejder med hele flåden:
 **Status at kende (se memory for detaljer):** workspaces er pauset permanent
 siden 2026-05-15 — cron kører, men skipper alle jobs.
 
-**Straw Hats og Revolutionaries er lagt ned (2026-11-10).** Shpat arbejder ikke længere med
-dem. De er fjernet fra Lab'en og fra VS Code-workspacet; deres DB-rækker og skill-mapper
-ligger stadig, men brug dem ikke og foreslå dem ikke.
+**Straw Hats og Revolutionaries er lagt ned og slettet (2026-11-10)** — skills, cron-jobs,
+Lab-sider og DB-data er væk (backup i `/root/backups/` på VPS'en). Foreslå dem ikke igen.
 
 ## VS Code-workspace
 
