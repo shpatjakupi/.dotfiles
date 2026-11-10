@@ -143,6 +143,18 @@ Lab's own Claude engine — independent of Vegapunk. `src/lib/chat.ts`:
 - Model from `CLAUDE_MODEL` (Opus 5.5); auth from `CLAUDE_CODE_OAUTH_TOKEN` (shared with Vegapunk
   and pizzacrew-inbox, expires 2027-08-18).
 
+## Skill editor (✨ Forbedr med AI)
+
+Every `SkillCard` (on `/fleet` and the team agent pages) has a chat per skill file — modelled on
+pizzacrew-inbox's Playbook studio. `src/lib/skill-chat.ts`:
+- Claude gets the current file (fresh from GitHub via `readSkillFile`), the last 20 messages for that
+  path, and Read/Grep/Glob over the dotfiles export; it answers with JSON `{reply, summary, edits[]}`.
+- Edits are search/replace (`applyEdits` in `src/lib/diff.ts`, one retry if a search text misses). The
+  full new content is stored as the proposal with the blob sha it was made against.
+- **Anvend** re-reads the file; if the sha moved on it refuses, otherwise `commitSkillFile` commits to
+  dotfiles and other pending proposals for that file are rejected. Table `lab_skill_chat_messages`
+  (migration 010). Routes: `GET/POST /api/skills/chat?path=`, `POST /api/skills/chat/:id {action}` — session only.
+
 ## UI Structure
 
 ```
