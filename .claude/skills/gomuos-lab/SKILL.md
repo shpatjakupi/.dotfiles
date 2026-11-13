@@ -31,7 +31,7 @@ retired and deleted on 2026-11-10 (DB rows, pages, APIs and the Project model ar
 | Slug | Shown as | Purpose | UI |
 |------|----------|---------|-----|
 | `gomuos` | GomuOS | Maintains the food-ordering platform | `/tickets`, `/hunters`, `/jobs` |
-| `kidsapp` | Bumble | Bumble App (children's app with the bumblebee) | `/kidsapp`, `/kidsapp/agents` |
+| `kidsapp` | Bumble | Bumble App (children's app with the bumblebee). No agents; its skills are edited on `/fleet` | `/kidsapp` |
 | `vegalab` | Vegalab | Changes to the Lab and Vegapunk, ordered from `/chat` (⚡ Udfør) and executed by Vegapunk | `/vegalab` |
 
 The slug `kidsapp` stays so URLs, tickets and the `kidsapp-*` agent prefix keep working.
@@ -178,7 +178,7 @@ src/
 ├── app/
 │   ├── login/                 password + TOTP code
 │   ├── tickets/, hunters/, jobs/        (gomuos)
-│   ├── kidsapp/, kidsapp/agents/        (Bumble)
+│   ├── kidsapp/                         (Bumble tickets)
 │   ├── fleet/                 Agent-flåden — mirrors projects/agent-fleet.code-workspace (ENTRIES)
 │   ├── chat/                  Chat med Claude
 │   ├── settings/              vacation mode, concurrency, restart-vegapunk

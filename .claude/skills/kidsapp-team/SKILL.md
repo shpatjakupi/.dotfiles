@@ -93,16 +93,12 @@ analytics or ads, parental gate in front of purchases and external links.
 The workspace is **paused** (`pausedUntil` 9999-12-31) — the dispatcher ignores its tickets.
 Work happens in interactive sessions; Lab tickets are the tracking board.
 
-| Agent | Status |
-|---|---|
-| `kidsapp-bimiboo-scout` | Kept, paused |
-| `kidsapp-edu-research-scout` | Kept, paused |
-| `kidsapp-physical-toy-scout` | Kept, paused |
-| manager / developer / reviewer / infra | Removed with Unity (2026-10-22). New agents get designed once phase 0 has produced a repeatable recipe |
+**There are no agents.** The manager, developer, reviewer and infra agents went with Unity
+(2026-10-22), and the three idea scouts were removed 2026-11-13. New agents get designed once
+phase 0 has produced a repeatable recipe.
 
-Leftovers outside dotfiles: `vegapunk/src/infra/cron.ts` still has `kidsapp-manager` and maps
-`kidsapp-*` agents to `/home/vegapunk/projects/kids-app`. Harmless while paused; update
-before unpausing.
+In `vegapunk/src/infra/cron.ts`, `kidsapp-*` agent names still map to the `kidsapp` workspace
+and to `/home/vegapunk/projects/bumble-app` as cwd, ready for future agents.
 
 ## Lab API
 

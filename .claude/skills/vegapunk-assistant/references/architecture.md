@@ -125,7 +125,7 @@ agents don't spam Telegram. Success notifications are not gated (low volume).
 
 **Where the actual code lives**: 1100+ lines in `src/infra/cron.ts`. The first
 ~200 lines define controls state, gates, semaphore, and the `runClaudeForJob`
-wrapper. The rest are job definitions (managers, hunters, dispatchers, scouts).
+wrapper. The rest are job definitions (managers, hunters, dispatchers).
 
 ## Environment Variables
 

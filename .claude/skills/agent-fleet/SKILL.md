@@ -51,7 +51,7 @@ skills, så de kan tilgås uden VS Code. Holdes i sync med workspace-filen
 | Team | Formål | Skill | Workspace | Lab |
 |---|---|---|---|---|
 | **gomuos-team** | Vedligeholder food-platformen (audit + fix) | `gomuos-team/SKILL.md` | `gomuos` (id 1) | `/tickets`, `/hunters`, `/jobs` |
-| **kidsapp-team** | Bumble App: børneapp med brumbassen (web + Capacitor, 2D via OpenAI, 3D i Blender). Unity droppet 2026-10-22 | `kidsapp-team/SKILL.md` | `kidsapp` (id 3), vises som "Bumble" | `/kidsapp`, `/kidsapp/agents` |
+| **kidsapp-team** | Bumble App: børneapp med brumbassen (web + Capacitor, 2D via OpenAI, 3D i Blender). Unity droppet 2026-10-22 | `kidsapp-team/SKILL.md` | `kidsapp` (id 3), vises som "Bumble" | `/kidsapp`, skills på `/fleet` |
 | **vegalab-team** | Udfører ændringer i Lab'en og Vegapunk, bestilt med ⚡ Udfør i Lab-chatten og godkendt én gang. Agenter: `lab-developer`, `vegapunk-developer`. Dispatcheren deployer | `vegalab-team/SKILL.md` | `vegalab` | `/vegalab`, `/chat` |
 
 ## Cross-cutting infrastruktur
@@ -69,7 +69,7 @@ skills, så de kan tilgås uden VS Code. Holdes i sync med workspace-filen
                               ▼
         ┌────────────────────────────────────────────────┐
         │  gomuos-lab (Next.js på k3s, lab.gomuos.com)   │
-        │   - 2 aktive workspaces (gomuos, kidsapp)      │
+        │   - 3 workspaces (gomuos, kidsapp, vegalab)    │
         │   - sidebar grupperer pr. team                 │
         │   - per-team agent-side med feedback-form      │
         │   - approval flow: pending → approved → done   │
@@ -93,7 +93,7 @@ fyringstidspunkt; de fleste jobs aligner til præcis UTC-tid.
 - Daglige jobs spredes over hele 24h-cyklen så vi undgår parallelle Opus-subprocesser
   og spreder API-load. Mindst 2h mellem to fixed-time jobs.
 - To hot jobs med samme `intervalMs` MÅ ikke fyre på samme offset — tilføj en entry
-  i `HOT_JOB_STARTUP_OFFSET_MS` (fx `kidsapp-manager: +1h` så 2h-cyklus rammer T+1h
+  i `HOT_JOB_STARTUP_OFFSET_MS` (fx en ny 2h-manager på +1h, så den rammer T+1h
   i stedet for samtidig med `gomuos-manager`).
 - Pipelines der spawner flere agenter skal have inter-agent sleep (fx 30s) for at
   undgå Anthropic rate-limit per-minute window.
@@ -162,14 +162,14 @@ execution failure, post-flight push-check, og begge throw-catches i dispatcher-l
 
 UI-sider:
 - GomuOS: `/tickets`, `/hunters` (agenter), `/jobs`
-- Bumble: `/kidsapp`, `/kidsapp/agents`
+- Bumble: `/kidsapp` (tickets). Ingen agenter; skills redigeres på `/fleet`
 - Globalt: `/fleet` (agent-flåden), `/chat` (spar med Claude om skills/tickets/jobs), `/settings`
 
 Login kræver kodeord + TOTP-kode (2FA). Billeder kan vedhæftes tickets (`POST /api/attachments`).
 
 Agent-feedback fra alle teams går igennem `/api/agents/feedback` der opretter en
-ticket assignedAgent til den pågældende teams manager (gomuos-manager
-eller kidsapp-manager).
+ticket assignedAgent til den pågældende teams manager. Kun GomuOS har en manager
+(gomuos-manager); Bumble og Vegalab har ingen.
 
 ## Hvor bor skill-filerne?
 
@@ -185,7 +185,7 @@ eller kidsapp-manager).
 │   └── infra/
 ├── kidsapp-team/
 │   ├── SKILL.md
-│   └── scouts/               ← 3 idé-scouts (pauset)
+│   └── GOALS.md              ← fase 0-mål (ingen agenter)
 ├── gomuos-lab/SKILL.md       ← lab-dashboard arkitektur
 ├── vps-cluster/SKILL.md      ← k3s, Traefik, cert-manager
 └── vegapunk-assistant/SKILL.md ← Telegram-bot der orkestrerer
